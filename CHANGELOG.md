@@ -23,3 +23,7 @@ History of what was done, generated from Conventional Commits by `scripts/change
 
 - Update the status now that the template is open (1eeed9b, 2026-10-25)
 
+### Chores
+
+- **claude:** Block agent access to dotenv secrets (1d2bb0f, 2026-10-25)
+
