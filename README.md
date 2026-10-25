@@ -175,7 +175,7 @@ Cada spec tem um `kind`, e é ele que decide os testes:
 
 | Tipo | O que é | Testes |
 |---|---|---|
-| `feature` | Capacidade nova (por exemplo, a cotação do euro além da do dólar) | **Um** teste caixa-preta (o caminho positivo principal e o negativo principal) **e** testes da linguagem para os detalhes, com pelo menos um `NEG` |
+| `feature` | Capacidade nova (por exemplo, a cotação do euro além da do dólar) | **Um** teste caixa-preta (o caminho positivo principal e o negativo principal) **e** testes da linguagem para os detalhes, com pelo menos um `NEGATIVE` |
 | `fix` | Correção de bug | Um teste de regressão da linguagem, que falha primeiro. Caixa-preta só se o bug quebrou a promessa do core |
 | `refactor` | Mudança interna, mesmo comportamento | Nenhum teste novo e **nenhum red**: registra-se o verde de partida, faz-se a mudança, revisa-se e refatora-se |
 | `chore` | Ferramentas, documentação, dependências | Igual ao `refactor` |
@@ -189,7 +189,7 @@ A cada demanda o agente pergunta: **o teste core ainda faz sentido?** Se o teste
 ### Regras
 
 - **Caixa-preta quer dizer:** fala com o produto só pela borda pública (linha de comando, HTTP, arquivos, um servidor de teste do serviço externo) e nunca importa o código do produto (o `scripts/arch-check.sh` confere).
-- **Testes positivos e negativos.** Positivo prova que a coisa funciona. **Negativo** prova que a coisa errada não acontece: entrada inválida é rejeitada, ação proibida é negada, operação que falha não deixa efeito colateral, nada é enviado a quem pediu para sair. Todo teste negativo leva `NEG` no nome, e o `scripts/evidence.sh` recusa o RED de uma `feature` sem pelo menos um.
+- **Testes positivos e negativos.** Positivo prova que a coisa funciona. **Negativo** prova que a coisa errada não acontece: entrada inválida é rejeitada, ação proibida é negada, operação que falha não deixa efeito colateral, nada é enviado a quem pediu para sair. Todo teste negativo leva `NEGATIVE` no nome, e o `scripts/evidence.sh` recusa o RED de uma `feature` sem pelo menos um.
 - **Os testes da linguagem seguem a sua escolha.** Ficam onde a linguagem costuma pôr testes (`SPEC_TESTS_DIR`) e usam `SPEC_TEST_STYLE`: `unit` (padrão: o núcleo e os adaptadores, com simulações atrás das portas), `e2e` (dirige o produto inteiro) ou `mixed` (o agente escolhe por requisito). Os nomes levam o id da spec (`S0001_R1_...`), e é assim que o `TEST_SPEC_CMD` roda os testes de uma spec só.
 - **Toda spec passa no teste core e nos seus.** O green também roda os testes das outras specs e os contratos das portas que ela tocou, para não quebrar o que já funcionava.
 - **Os testes caixa-preta são protegidos, mas não congelados.** O hook `commit-msg` recusa commit que altera ou apaga `acceptance/core/` sem `Core-Change:` e `acceptance/features/` sem `Acceptance-Change:`. Um teste de feature pode ficar obsoleto com o tempo; o que não pode é sumir sem motivo registrado.
@@ -205,12 +205,12 @@ Cada execução do `scripts/evidence.sh` gera de novo um **checklist em Markdown
 
 ```markdown
 ## Stage 1: black-box (the central tests)
-- [x] Core test (acceptance/core): passed (`A01`, `A02_NEG`)
-- [x] This feature (acceptance/features): passed (`S0002_R1`, `S0002_R2_NEG`)
+- [x] Core test (acceptance/core): passed (`A01`, `A02_NEGATIVE`)
+- [x] This feature (acceptance/features): passed (`S0002_R1`, `S0002_R2_NEGATIVE`)
 - [x] All the features: passed
 
 ## Stage 2: the language's own tests
-- [x] This spec (tests): passed (`S0002_R1`, `S0002_R2_NEG`, `S0002_R3`)
+- [x] This spec (tests): passed (`S0002_R1`, `S0002_R2_NEGATIVE`, `S0002_R3`)
 - [x] All the specs: passed
 - [x] Contracts: passed
 - [x] Architecture rules (scripts/arch-check.sh): passed
@@ -226,7 +226,7 @@ Limite honesto: as caixas refletem o resultado de cada **etapa** (o código de s
 
 Sem teste caixa-preta não dá para provar uma troca de linguagem. Quem prova é o conjunto `acceptance/core/` mais `acceptance/features/`, e é por isso que cada `feature` ganha o seu. O que ficou coberto **só** por testes da linguagem (correções de bug, detalhes) precisa ser portado à mão; o `/swap` lista isso antes da troca.
 
-Exemplo ilustrativo de piloto para um conversor de planilhas: **A01** (positivo) roda o comando com um arquivo de entrada e confere que o arquivo de saída tem as colunas combinadas; **A02 NEG** (negativo) passa um arquivo corrompido e confere que o comando falha com mensagem clara e **não** cria arquivo de saída. O mesmo vale para qualquer outro tipo de projeto.
+Exemplo ilustrativo de piloto para um conversor de planilhas: **A01** (positivo) roda o comando com um arquivo de entrada e confere que o arquivo de saída tem as colunas combinadas; **A02 NEGATIVE** (negativo) passa um arquivo corrompido e confere que o comando falha com mensagem clara e **não** cria arquivo de saída. O mesmo vale para qualquer outro tipo de projeto.
 
 ## Exemplo de ponta a ponta: cotação do dólar
 
@@ -244,7 +244,7 @@ Um programa web que faz **uma única ação**: buscar a cotação atual do dóla
 | Configuração (URL da API) | infraestrutura | `ports/config` | L1 variável de ambiente |
 | Testes | teste | n/a | core caixa-preta + unitários |
 
-**3. RED, GREEN, REVIEW, REFACTOR.** O teste core sobe um servidor de cotações falso, aponta o produto para ele pela configuração (assim o teste não depende da internet) e confere pela borda do produto: **A01**, `USD` para `BRL` com `100` devolve o valor certo; **A02 NEG**, moeda inválida ou valor negativo devolve erro e **nenhuma** conversão. O teste falha (documentado), o app é escrito em camadas até passar, é revisado e refatorado.
+**3. RED, GREEN, REVIEW, REFACTOR.** O teste core sobe um servidor de cotações falso, aponta o produto para ele pela configuração (assim o teste não depende da internet) e confere pela borda do produto: **A01**, `USD` para `BRL` com `100` devolve o valor certo; **A02 NEGATIVE**, moeda inválida ou valor negativo devolve erro e **nenhuma** conversão. O teste falha (documentado), o app é escrito em camadas até passar, é revisado e refatorado.
 
 **4. Uso e demonstração.** O piloto já resolve o problema. Dá para usá-lo todo dia e mostrá-lo a outras pessoas para ver se a ideia faz sentido.
 
@@ -361,7 +361,7 @@ Como o agente faz um commit por fase do ciclo, o histórico conta a história re
 | `/start` | Projeto vazio: entrevista rápida, mapa de camadas, teste de aceitação que falha, piloto rápido e desacoplado em uso |
 | `/spec` | Algo novo: entrevista, spec numerada, red, green, review, refactor |
 | `/backlog` | Anota várias demandas e as ordena com o método escolhido (none, MoSCoW, RICE, ICE) |
-| `/verify` | Roda os testes core, de specs e de contratos, as regras de arquitetura e confere a disciplina (evidências, testes `NEG`) |
+| `/verify` | Roda os testes core, de specs e de contratos, as regras de arquitetura e confere a disciplina (evidências, testes `NEGATIVE`) |
 | `/planks` | Mostra as tábuas, os níveis e as dores, e sugere a próxima troca (só leitura) |
 | `/pain` | Algo incomoda: anota no `PLANKS.md` sem agir, para a próxima troca nascer de dor real |
 | `/swap <tábua>` | Troca uma tábua sem parar o produto |
@@ -470,7 +470,7 @@ Aviso honesto: os scripts foram testados num repositório descartável (253 veri
 - **Porta errada custa caro.** A implementação é fácil de trocar, mas a interface entre as partes é decisão de mão única.
 - **O ciclo completo cansa.** Red, green, review e refactor com evidência, e dois testes por `feature` (um caixa-preta e um da linguagem), é mais cerimônia do que um simples "pede e vê". Para ajustes minúsculos existem os tipos `fix`, `refactor` e `chore`, que pedem menos, mas ainda pode parecer exagero.
 - **Dois ritmos convivendo.** O piloto vibe-codado e as partes novas em SDD podem divergir. Exige disciplina: piloto congelado, correções críticas só com teste.
-- **Falsa segurança com poucos testes.** Um piloto com um cenário só prova pouco. O teste core, de caixa-preta, cobre apenas o que foi pensado (desempenho, concorrência e casos de borda escapam) e é mais lento em fluxos assíncronos. Um teste `NEG` mal escrito, que não pode falhar, também engana.
+- **Falsa segurança com poucos testes.** Um piloto com um cenário só prova pouco. O teste core, de caixa-preta, cobre apenas o que foi pensado (desempenho, concorrência e casos de borda escapam) e é mais lento em fluxos assíncronos. Um teste `NEGATIVE` mal escrito, que não pode falhar, também engana.
 - **Os testes da linguagem acompanham os internos.** Só os testes caixa-preta (core e features) e os contratos sobrevivem a qualquer troca; os da linguagem podem precisar de reescrita quando uma tábua muda por dentro. É o preço de ter testes rápidos e baratos. Quem prefere testes que quase nunca quebram na troca pode escolher `SPEC_TEST_STYLE=e2e`.
 - **A suíte caixa-preta cresce com cada feature.** Fica mais lenta e algumas ficam obsoletas. Mantenha um teste por feature, só com o caminho principal (o resto é dos testes da linguagem), e aposente os obsoletos com `Acceptance-Change:`.
 - **Commit sem pergunta, push com pergunta.** Como o agente commita sozinho, o histórico local pode ter commits ruins até você revisar; a trava é o push (e o `reviewer`). Quem quiser revisar cada commit precisa fazê-lo por conta própria.

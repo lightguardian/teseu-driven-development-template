@@ -24,7 +24,7 @@
 #   red       the new tests FAIL, in BOTH stages; needs a note: why it fails. What is
 #             required depends on the spec's kind (frontmatter):
 #               feature   tests in the language's style naming the spec id (S0001_R1_...)
-#                         and at least one negative test (NEG); at TEST_LEVEL=full also a
+#                         and at least one negative test (NEGATIVE); at TEST_LEVEL=full also a
 #                         black-box test under acceptance/features/
 #               fix       a regression test naming the spec id, in either place
 #               refactor, chore, or tests: none   no red: start with green (the baseline)
@@ -380,15 +380,15 @@ case "$phase" in
     fi
     case "$target" in
       core)
-        neg=$(( $(count_files 'NEG' "$tests_dir") + $(count_files 'NEG' "$(env_get SPEC_TESTS_DIR tests)") ))
-        [ "$neg" -ge 1 ] || die "no negative test found for the pilot. Put NEG in the name of at least one test."
+        neg=$(( $(count_files 'NEGATIVE' "$tests_dir") + $(count_files 'NEGATIVE' "$(env_get SPEC_TESTS_DIR tests)") ))
+        [ "$neg" -ge 1 ] || die "no negative test found for the pilot. Put NEGATIVE in the name of at least one test."
         need TEST_CORE_CMD
         if stage R_core core scripts/test.sh core; then fail_red "core tests"; fi
         R_core=expectedfail
         ;;
       swap)
-        neg="$(count_files 'NEG' "$tests_dir")"
-        [ "$neg" -ge 1 ] || die "no negative test found in $tests_dir. Put NEG in the name of at least one test."
+        neg="$(count_files 'NEGATIVE' "$tests_dir")"
+        [ "$neg" -ge 1 ] || die "no negative test found in $tests_dir. Put NEGATIVE in the name of at least one test."
         need TEST_CONTRACTS_CMD
         if step contracts scripts/test.sh contracts; then fail_red "contract tests"; fi
         ;;
@@ -397,13 +397,13 @@ case "$phase" in
         bb_dir="acceptance/features"
         n_bb="$(count_files "$sid" "$bb_dir")"
         n_lang="$(count_files "$sid" "$tests_dir")"
-        neg=$(( $(count_files "$sid.*NEG|NEG.*$sid" "$bb_dir") + $(count_files "$sid.*NEG|NEG.*$sid" "$tests_dir") ))
+        neg=$(( $(count_files "$sid.*NEGATIVE|NEGATIVE.*$sid" "$bb_dir") + $(count_files "$sid.*NEGATIVE|NEGATIVE.*$sid" "$tests_dir") ))
         if [ "$kind" = "feature" ]; then
           if [ "$level" = "full" ]; then
             [ "$n_bb" -ge 1 ] || die "TEST_LEVEL=full: a feature needs a black-box test, but no file under $bb_dir mentions $sid (put it in $bb_dir/$target-<slug>/)."
           fi
           [ "$n_lang" -ge 1 ] || die "a feature needs tests in the language's style: no file under $tests_dir mentions $sid. (To skip tests for this demand, set tests: none in the spec.)"
-          [ "$neg" -ge 1 ] || die "no negative test found for $sid. Put NEG in the name of at least one test."
+          [ "$neg" -ge 1 ] || die "no negative test found for $sid. Put NEGATIVE in the name of at least one test."
         else
           [ $((n_bb + n_lang)) -ge 1 ] || die "a fix needs a regression test that mentions $sid (under $tests_dir or $bb_dir). (To skip tests for this demand, set tests: none in the spec.)"
         fi

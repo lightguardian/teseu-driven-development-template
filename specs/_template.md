@@ -28,7 +28,7 @@ For a `refactor` or `chore`, write what must NOT change (the behavior stays the 
 | ID | Requirement | Kind |
 |---|---|---|
 | S0000-R1 | | positive |
-| S0000-R2 | | negative (NEG) |
+| S0000-R2 | | negative (NEGATIVE) |
 
 ## Acceptance criteria
 
@@ -40,7 +40,7 @@ Given <context>
 When <action>
 Then <observable result>
 
-# S0000-R2 NEG (negative)
+# S0000-R2 NEGATIVE (negative)
 Given <context where it must be refused>
 When <action>
 Then <it is rejected / nothing is sent / nothing is written>
@@ -52,7 +52,7 @@ Then <it is rejected / nothing is sent / nothing is written>
 - `fix`: a regression test that fails first, in the language's usual style. A black-box test only if the bug broke what the core promises.
 - `refactor` and `chore`: no new tests. Core, features and specs stay green.
 
-Test names carry the requirement id (`S0000_R1_...`); negative ones carry `NEG`.
+Test names carry the requirement id (`S0000_R1_...`); negative ones carry `NEGATIVE`.
 Done means: core tests, these tests, the other specs' tests and the contract tests of every port touched all pass.
 
 ## Evidence

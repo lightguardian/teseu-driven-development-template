@@ -9,7 +9,7 @@ Refactors, chores and bug fixes do not get a black-box test here. A bug fix gets
 Rules (the same as `acceptance/core/`):
 
 - **Black box.** Talk to the product only through its public edge. Never import product code (`scripts/arch-check.sh` enforces it).
-- **Name the spec.** Test names carry the requirement id (`S0002_R1_...`); negative ones carry `NEG`.
+- **Name the spec.** Test names carry the requirement id (`S0002_R1_...`); negative ones carry `NEGATIVE`.
 - **Red first.** Write the test, watch it fail for the right reason, and record it with `scripts/evidence.sh red NNNN "<why it fails>"`.
 - **Together with `acceptance/core/`, this folder is the safety net of a full rewrite** (another language, another stack): everything here must pass against the new implementation.
 

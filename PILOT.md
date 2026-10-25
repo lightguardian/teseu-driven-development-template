@@ -17,7 +17,7 @@ The smallest thing that would already be useful.
 
 The observable final result: what arrives, where and in what format.
 
-## Must never happen (negative test `A02`, with `NEG` in its name)
+## Must never happen (negative test `A02`, with `NEGATIVE` in its name)
 
 The worst wrong outcome: a message to the wrong person, a duplicate, bad input accepted.
 

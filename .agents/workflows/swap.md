@@ -18,7 +18,7 @@ Identify the plank's port. If there is no port because the thing is tangled into
 
 ## 2. Contract tests (positive and negative)
 
-If the project uses contracts, make sure `contracts/` has a suite for the port that exercises the current adapter and that it passes. (At `TEST_LEVEL=none` there is no automated proof of a swap: tell the user and ask for a manual check of the behavior before and after.) If it does not exist, write it from the current behavior. It must include negative tests (`NEG`): what the port must refuse or must not do (invalid input rejected, nothing written on failure). The same suite will run against every adapter of the port.
+If the project uses contracts, make sure `contracts/` has a suite for the port that exercises the current adapter and that it passes. (At `TEST_LEVEL=none` there is no automated proof of a swap: tell the user and ask for a manual check of the behavior before and after.) If it does not exist, write it from the current behavior. It must include negative tests (`NEGATIVE`): what the port must refuse or must not do (invalid input rejected, nothing written on failure). The same suite will run against every adapter of the port.
 
 ## 3. RED: register the new adapter
 

@@ -28,7 +28,7 @@ Copy `specs/_template.md` (NNNN is the next free number). Write the text in `SPE
 
 The tests depend on the kind:
 
-- **feature:** the tests of the details under `SPEC_TESTS_DIR`, and, at `TEST_LEVEL=full`, also exactly one black-box test in `acceptance/features/NNNN-slug/` (the main positive path and the main negative one, end-to-end through the product's public edge, never importing product code; at the other levels it is optional), in the language's usual style and following `SPEC_TEST_STYLE` (`unit`, `e2e` or `mixed`; in `mixed`, pick per requirement). Unit tests may import the code under test and use fakes behind the ports. At least one test overall is negative (`NEG` in its name).
+- **feature:** the tests of the details under `SPEC_TESTS_DIR`, and, at `TEST_LEVEL=full`, also exactly one black-box test in `acceptance/features/NNNN-slug/` (the main positive path and the main negative one, end-to-end through the product's public edge, never importing product code; at the other levels it is optional), in the language's usual style and following `SPEC_TEST_STYLE` (`unit`, `e2e` or `mixed`; in `mixed`, pick per requirement). Unit tests may import the code under test and use fakes behind the ports. At least one test overall is negative (`NEGATIVE` in its name).
 - **fix:** a regression test that reproduces the bug, in the language's usual style. A black-box test only if the bug broke what the core promises.
 - **refactor and chore:** no red. Run `scripts/evidence.sh green NNNN` now to record the baseline (everything passes before the change), then skip to step 4.
 

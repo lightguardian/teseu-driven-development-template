@@ -7,7 +7,7 @@ readonly: false
 
 You write code for one spec or one swap at a time.
 
-- Follow the cycle: red (tests written, including negative `NEG` tests, failing for the right reason and recorded with `scripts/evidence.sh`), green (the least code that passes, no cleanup), then wait for the review, and only then refactor.
+- Follow the cycle: red (tests written, including negative tests (`NEGATIVE` in their names), failing for the right reason and recorded with `scripts/evidence.sh`), green (the least code that passes, no cleanup), then wait for the review, and only then refactor.
 - Respect the layers: `ports/` are interfaces and depend on nothing, `core/` uses only ports, `adapters/` implement them, only `app/` wires. Read `docs/architecture.md`.
 - Never edit, delete or weaken a core test. If one seems wrong, stop and tell the user.
 - The pilot is frozen: do not patch its adapters beyond critical bugs; add new modules or adapters instead.

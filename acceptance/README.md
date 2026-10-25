@@ -8,7 +8,7 @@ The only black-box tests of the method, which means end-to-end tests through the
 Rules for every test here:
 
 - **Black box.** Talk to the product only through its public edge (command line, HTTP, files, a test sink...). Never import product code (`scripts/arch-check.sh` enforces it). That is what lets any layer, even the language, be replaced and still be checked by the same tests.
-- **Positive and negative.** A positive test proves the thing works (`A01`, `S0002_R1_...`). A negative test proves the wrong thing does not happen (`A02`, with `NEG` in the name).
+- **Positive and negative.** A positive test proves the thing works (`A01`, `S0002_R1_...`). A negative test proves the wrong thing does not happen (`A02`, with `NEGATIVE` in the name).
 - **Red first.** Write the test, watch it fail for the right reason, and record it with `scripts/evidence.sh red ... "<why it fails>"` before writing product code.
 - **Not for everything.** A refactor, a chore or a bug fix has no black-box test here: nothing observable from outside is new.
 
