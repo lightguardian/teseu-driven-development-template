@@ -31,6 +31,8 @@ Acertar **um prompt** (precedido de uma entrevista curta) que gere um produto **
 
 Depois disso, o produto é melhorado aos poucos com SDD, uma demanda por vez, sem reescrever tudo e sem parar de usá-lo.
 
+O piloto também serve para **mostrar a ideia a outras pessoas**: um barco pequeno que já navega permite ver se o produto faz sentido antes de investir no completo. Se fizer, as tábuas vão sendo trocadas até sobrar pouco ou nenhum resquício do piloto.
+
 Em uma frase: **primeiro funcionar, depois merecer confiança, uma peça de cada vez.**
 
 ## Inspiração
@@ -95,7 +97,7 @@ A entrevista do Teseu-DD é curta de propósito: ela existe para escrever **um t
 2. **Quem sente a dor e o que acontece hoje sem isso?**
 3. **Como saberemos que deu certo e o que nunca pode acontecer?** O resultado final observável (o arquivo tem estas colunas, a mensagem chegou nesse formato) e o pior resultado errado (foi para a pessoa errada, saiu duplicado, dado perdido).
 4. **Algo precisa ser robusto já no dia 0?** Banco de verdade, autenticação, dinheiro, dados de terceiros, mensagens em massa.
-5. **Já tem uma arquitetura ou stack em mente?** Opcional.
+5. **Já tem uma arquitetura ou stack em mente, e prefere testes unitários ou end-to-end para as próximas specs?** Opcional. O padrão é unitário (só o teste core é caixa-preta).
 
 Depois da entrevista, o agente propõe o **mapa de camadas** do projeto (veja abaixo) e pergunta só se falta ou sobra algo. Aí escreve o teste de aceitação (RED), constrói um app rápido em camadas desacopladas até o teste passar (GREEN), revisa, refatora, e entrega o produto para uso. Sem PRD, sem MoSCoW, sem Given/When/Then por história.
 
@@ -135,25 +137,54 @@ Exemplo ilustrativo (um sistema de campanhas de e-mail; é só um exemplo, o mé
 | Serviço de e-mail | serviço externo | `ports/mailer` | L1 servidor de teste |
 | API própria do sistema | interface | n/a (é `app/`) | L0 |
 | Banco de dados | dados | `ports/campaigns` | L0 em memória |
-| Testes | teste | n/a | caixa-preta |
+| Testes | teste | n/a | core caixa-preta + unitários |
 | Configuração e segredos | infraestrutura | `ports/config` | L1 `.env` |
 
 ## Os testes
 
-| Pasta | O que prova | Muda quando |
-|---|---|---|
-| `acceptance/core/` | O produto entrega o que o usuário pediu (o **teste core**) | Nunca, a menos que o objetivo mude (commit com `Core-Change:`) |
-| `acceptance/specs/NNNN-slug/` | Os requisitos de cada spec | A spec muda |
-| `contracts/` | Todo adaptador de uma porta se comporta como a porta promete | A porta muda |
+| Pasta | O que prova | Estilo | Muda quando |
+|---|---|---|---|
+| `acceptance/core/` | O produto entrega o que o usuário pediu (o **teste core** do piloto) | **Caixa-preta**, a única | Nunca, a menos que o objetivo mude (commit com `Core-Change:`) |
+| `tests/` (`SPEC_TESTS_DIR`) | Os requisitos de cada spec | Os testes usuais da linguagem: **unitários, end-to-end ou mistos**, à sua escolha | A spec muda, ou uma troca mexe nos internos que eles tocam |
+| `contracts/` | Todo adaptador de uma porta se comporta como a porta promete | Testes da linguagem, rodados contra cada adaptador | A porta muda |
 
 Regras:
 
-- **Caixa-preta.** Os testes de aceitação falam com o produto só pela borda pública (linha de comando, HTTP, arquivos, um servidor de teste do serviço externo) e nunca importam o código do produto. É isso que permite trocar qualquer camada, e até a linguagem, e provar que o produto continua igual.
+- **Só o teste core é caixa-preta.** Ele fala com o produto só pela borda pública (linha de comando, HTTP, arquivos, um servidor de teste do serviço externo) e nunca importa o código do produto. É isso que permite trocar qualquer camada, e até a linguagem, e provar que o produto continua igual.
+- **O resto segue a linguagem e a sua escolha.** Os testes das specs ficam onde a linguagem costuma pôr testes (`SPEC_TESTS_DIR`) e usam o estilo de `SPEC_TEST_STYLE`: `unit` (padrão: o núcleo e os adaptadores, com simulações atrás das portas), `e2e` (dirige o produto inteiro) ou `mixed` (o agente escolhe por requisito: unitário para regras, end-to-end para fluxos). Os nomes levam o id da spec (`S0001_R1_...`), e é assim que o `TEST_SPEC_CMD` roda os testes de uma spec só.
 - **Testes positivos e negativos.** Positivo prova que a coisa funciona. **Negativo** prova que a coisa errada não acontece: entrada inválida é rejeitada, ação proibida é negada, operação que falha não deixa efeito colateral, nada é enviado a quem pediu para sair. Todo teste negativo leva `NEG` no nome, e o `scripts/evidence.sh` recusa um RED sem pelo menos um.
-- **Toda spec passa no teste core e nos seus.** Spec que passa nos próprios testes mas quebra o core não está pronta.
+- **Toda spec passa no teste core e nos seus.** Spec que passa nos próprios testes mas quebra o core não está pronta. O green também roda os testes das outras specs e os contratos das portas que ela tocou, para não quebrar o que já funcionava.
 - **O core é protegido.** O hook `commit-msg` recusa commit que altera ou apaga `acceptance/core/` sem o rodapé `Core-Change: <motivo>`, e o Claude Code pede confirmação antes de editar esses arquivos.
 
 Exemplo ilustrativo de piloto para um conversor de planilhas: **A01** (positivo) roda o comando com um arquivo de entrada e confere que o arquivo de saída tem as colunas combinadas; **A02 NEG** (negativo) passa um arquivo corrompido e confere que o comando falha com mensagem clara e **não** cria arquivo de saída. O mesmo vale para qualquer outro tipo de projeto.
+
+## Exemplo de ponta a ponta: cotação do dólar
+
+Um programa web que faz **uma única ação**: buscar a cotação atual do dólar numa API pública de cotações e converter para a moeda e o valor que a pessoa digitar.
+
+**1. `/start`, a entrevista.** Função única: converter um valor em dólar para outra moeda. Pronto quando: digitei `USD`, `BRL` e `100`, e a tela mostrou o valor convertido com a cotação do momento. Nunca pode acontecer: mostrar um valor errado (moeda inválida, valor negativo, API fora do ar) como se estivesse certo.
+
+**2. Mapa de camadas.**
+
+| Camada | Tipo | Porta | Começa em |
+|---|---|---|---|
+| Regra de conversão | código (`core/`) | n/a | L0 |
+| Cotações | serviço externo | `ports/rates` | L2 a API pública real |
+| Entrada | interface | n/a (é `app/`) | L0 uma página simples |
+| Configuração (URL da API) | infraestrutura | `ports/config` | L1 variável de ambiente |
+| Testes | teste | n/a | core caixa-preta + unitários |
+
+**3. RED, GREEN, REVIEW, REFACTOR.** O teste core sobe um servidor de cotações falso, aponta o produto para ele pela configuração (assim o teste não depende da internet) e confere pela borda do produto: **A01**, `USD` para `BRL` com `100` devolve o valor certo; **A02 NEG**, moeda inválida ou valor negativo devolve erro e **nenhuma** conversão. O teste falha (documentado), o app é escrito em camadas até passar, é revisado e refatorado.
+
+**4. Uso e demonstração.** O piloto já resolve o problema. Dá para usá-lo todo dia e mostrá-lo a outras pessoas para ver se a ideia faz sentido.
+
+**5. Depois, uma spec por vez, quando a necessidade aparecer.**
+
+- "Quero ver o histórico das cotações" é uma `/spec`: nasce uma camada de dados (um novo adaptador atrás de uma porta), com testes positivos e negativos.
+- "A API às vezes demora" vira uma dor (`/pain`) e depois uma troca de tábua (`/swap`): a tábua de cotações ganha um cache, com o contrato da porta rodando contra os dois adaptadores.
+- "Outras pessoas vão usar" sobe o rigor (`/harden`) e troca a página simples por uma interface de verdade.
+
+Cada passo deixa o barco navegando. Com o tempo, as tábuas do piloto foram todas trocadas, e o teste core de dia 1 continua passando.
 
 ## Estrutura de pastas
 
@@ -177,8 +208,8 @@ src/
   app/                     entradas e ligação; o único lugar que escolhe o adaptador
 
 acceptance/
-  core/                    testes de caixa-preta do piloto (imutáveis)
-  specs/NNNN-slug/         testes de cada spec
+  core/                    o teste core do piloto: os únicos testes de caixa-preta (imutáveis)
+tests/                     testes das specs, unitários ou end-to-end, no estilo da linguagem (SPEC_TESTS_DIR)
 contracts/                 um conjunto de testes por porta, rodado contra todos os adaptadores
 specs/                     NNNN-slug.md, uma por demanda (+ _template.md)
 docs/                      architecture.md (mapa de camadas), adr/ (a partir do R3)
@@ -299,6 +330,8 @@ Tudo o que você pode escolher fica no `.harness.env`. Os agentes só mudam essa
 |---|---|---|
 | `NATIVE_LANGUAGE` | `pt-BR` (padrão), `en`, `es`... | Idioma das entrevistas, do `PILOT.md`, `PLANKS.md`, `BACKLOG.md`, `GLOSSARY.md`, das issues e dos PRs |
 | `SPEC_LANGUAGE` | vazio (padrão), `en`, `pt-BR`... | Idioma das specs. Vazio significa o mesmo de `NATIVE_LANGUAGE`. Cabeçalhos, ids, Given/When/Then e nomes de testes ficam em inglês |
+| `SPEC_TEST_STYLE` | `unit` (padrão), `e2e`, `mixed` | Estilo dos testes das specs. Só o teste core do piloto é caixa-preta |
+| `SPEC_TESTS_DIR` | `tests` (padrão) ou o lugar usual da sua linguagem | Onde ficam os testes das specs |
 | `REVIEW_MODE` | `auto` (padrão), `external`, `off` | Quem revisa entre o green e o refactor: o `reviewer` embutido, o **seu** revisor (o agente espera o veredito e o registra) ou ninguém |
 | `PRIORITIZATION` | `none` (padrão), `moscow`, `rice`, `ice` | Como o `BACKLOG.md` é ordenado |
 | `RIGOR` | `R0` a `R3` | Quanto de documentação e checagem existe (`/harden` sobe) |
@@ -324,7 +357,7 @@ A fonte única é o `AGENTS.md`. Cada ferramenta ganha uma casca fina que só ap
 
 Para criar um comando novo: escreva `.agents/workflows/<nome>.md` e rode `scripts/sync-shells.sh`.
 
-Aviso honesto: os scripts foram testados num repositório descartável (105 verificações, incluindo os hooks, a ordem do ciclo, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
+Aviso honesto: os scripts foram testados num repositório descartável (117 verificações, incluindo os hooks, a ordem do ciclo, os modos de revisão, os estilos de teste, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
 
 ## Scripts
 
@@ -343,7 +376,7 @@ Aviso honesto: os scripts foram testados num repositório descartável (105 veri
 - **Valor no dia 0.** Algo é usado de verdade logo, e o feedback real orienta o que vale documentar.
 - **Tokens gastos no que se usa.** A documentação pesada só aparece para o que já provou ser necessário.
 - **Troca com o barco na água.** O sistema funciona em todos os passos. Se a sessão acabar no meio de uma troca, nada fica quebrado.
-- **Os testes sobrevivem a tudo.** Refatoração, banco novo, framework novo, linguagem nova e até a IA que escreveu o código.
+- **O teste core sobrevive a tudo.** Refatoração, banco novo, framework novo, linguagem nova e até a IA que escreveu o código. Os contratos protegem cada troca de tábua.
 - **Disciplina que se verifica.** O red documentado, os testes negativos, a ordem do ciclo e o changelog em dia são checados por script, não só pedidos por texto.
 - **Histórico de graça.** Um commit por fase gera um changelog que conta o que foi feito, sem escrever nada à mão.
 - **Specs mais honestas.** Escritas depois do uso, falam de dores reais, não de suposições.
@@ -359,7 +392,8 @@ Aviso honesto: os scripts foram testados num repositório descartável (105 veri
 - **Porta errada custa caro.** A implementação é fácil de trocar, mas a interface entre as partes é decisão de mão única.
 - **O ciclo completo cansa.** Red, green, review e refactor com evidência a cada demanda é mais cerimônia do que um simples "pede e vê". Para ajustes minúsculos pode parecer exagero.
 - **Dois ritmos convivendo.** O piloto vibe-codado e as partes novas em SDD podem divergir. Exige disciplina: piloto congelado, correções críticas só com teste.
-- **Falsa segurança com poucos testes.** Um piloto com um cenário só prova pouco. Testes de caixa-preta cobrem apenas o que foi pensado (desempenho, concorrência e casos de borda escapam) e são mais lentos em fluxos assíncronos. Um teste `NEG` mal escrito, que não pode falhar, também engana.
+- **Falsa segurança com poucos testes.** Um piloto com um cenário só prova pouco. O teste core, de caixa-preta, cobre apenas o que foi pensado (desempenho, concorrência e casos de borda escapam) e é mais lento em fluxos assíncronos. Um teste `NEG` mal escrito, que não pode falhar, também engana.
+- **Testes unitários das specs acompanham os internos.** Só o teste core e os contratos sobrevivem a qualquer troca. Os unitários podem precisar ser reescritos quando uma tábua muda por dentro; é o preço de ter testes rápidos e baratos. Quem prefere testes que quase nunca quebram na troca pode escolher `SPEC_TEST_STYLE=e2e`.
 - **Commit sem pergunta, push com pergunta.** Como o agente commita sozinho, o histórico local pode ter commits ruins até você revisar; a trava é o push (e o `reviewer`). Quem quiser revisar cada commit precisa fazê-lo por conta própria.
 - **"Produção entre aspas" tem risco real.** Usar o piloto com dados de terceiros, dinheiro ou mensagens em massa sem autenticação, limites e backup pode causar dano de verdade. Nesses casos o rigor precisa subir antes do primeiro uso.
 - **As travas são locais.** Os hooks do git e o `arch-check` (que lê linhas, não entende código) são grades de proteção, não segurança: `git commit --no-verify` no seu terminal passa por cima. A proteção real é a branch protegida no GitHub e o CI.

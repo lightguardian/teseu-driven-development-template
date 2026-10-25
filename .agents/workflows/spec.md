@@ -24,9 +24,9 @@ Copy `specs/_template.md` (NNNN is the next free number). Write the text in `SPE
 
 ## 3. RED: the tests come first
 
-- Create `acceptance/specs/NNNN-slug/` with one test per criterion. Names cite the requirement id (`S0001-R1`). Every sad path and every "must never happen" becomes a negative test with `NEG` in its name; there must be at least one. Prefer black-box tests through the edge. If the behavior cannot be observed from outside, a contract or unit test is fine: say why in the spec.
-- Set `TEST_SPECS_CMD` in `.harness.env` if it is still empty. `{spec}` in the command is replaced by the folder name.
-- Run `scripts/evidence.sh red NNNN`. It checks that the new tests fail, that the core tests still pass and that a negative test exists, then records it in the spec. A test that passes before any code is written proves nothing: strengthen it.
+- Write one test per criterion under `SPEC_TESTS_DIR`, in the language's usual test style and following `SPEC_TEST_STYLE` (`unit`, `e2e` or `mixed`; in `mixed`, pick per requirement). Unlike the core test, these are not black-box by rule: unit tests may import the code under test and use fakes behind the ports. Names carry the requirement id (`S0001_R1_...`). Every sad path and every "must never happen" becomes a negative test with `NEG` in its name; there must be at least one.
+- Make sure `TEST_SPECS_CMD` (all spec tests) and `TEST_SPEC_CMD` (one spec, with `{spec}` in it) are set in `.harness.env`.
+- Run `scripts/evidence.sh red NNNN "<why they fail>"`. It checks that the new tests fail, that the core tests still pass and that a negative test exists, then records it in the spec. A test that passes before any code is written proves nothing: strengthen it.
 - Do not write product code until this evidence exists. Commit: `test(S<NNNN>): add failing tests for <slug>`.
 
 ## 4. GREEN: the least code that passes
@@ -34,7 +34,7 @@ Copy `specs/_template.md` (NNNN is the next free number). Write the text in `SPE
 - Put code in the right layer. New code uses the right pattern from the start (port, then adapter, wired in `app/`).
 - Do not edit the pilot's adapters unless a requirement forces it. New behavior goes into new modules or adapters.
 - No cleanup and no extras in this phase. Small steps; run the spec tests and the core tests after each one.
-- Run `scripts/evidence.sh green NNNN`. It runs the core tests, the spec's tests, the contract tests and `scripts/arch-check.sh`, and records the pass. A spec that passes its own tests but breaks the core is not done. Commit: `feat(<scope>): <what it does>`.
+- Run `scripts/evidence.sh green NNNN`. It runs the core tests, the spec's tests, the other specs' tests, the contract tests and `scripts/arch-check.sh`, and records the pass. A spec that passes its own tests but breaks the core is not done. Commit: `feat(<scope>): <what it does>`.
 
 ## 5. REVIEW
 

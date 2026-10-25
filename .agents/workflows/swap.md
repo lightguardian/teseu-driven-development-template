@@ -22,7 +22,7 @@ Make sure `contracts/` has a suite for the port that exercises the current adapt
 
 ## 3. RED: register the new adapter
 
-Add the new adapter to the contract suite as an empty skeleton and run `scripts/evidence.sh red swap`. The contract tests must fail for the new adapter (it does nothing yet) and pass for the old one.
+Add the new adapter to the contract suite as an empty skeleton and run `scripts/evidence.sh red swap "<why they fail>"`. The contract tests must fail for the new adapter (it does nothing yet) and pass for the old one.
 
 ## 4. GREEN: expand, then migrate
 

@@ -19,7 +19,7 @@ Goal: a usable product that does ONE thing, already in the user's hands, built f
 2. **Who feels the pain and what happens today without it?** One sentence is enough.
 3. **How will we know it worked, and what must never happen?** Ask for the observable final result: what exists or arrives, where and in what format (a message in an inbox with this subject, a file with these columns, a JSON response, a line in a report, a game state). Then ask for the worst wrong outcome (it goes to the wrong person, a duplicate, bad input accepted, data lost). The first becomes the positive test, the second the negative test.
 4. **Does anything need to be robust from day 0?** Real database, authentication, payments, other people's data, messages to third parties. If yes, that plank starts at L2 or L3 and you must say which real data the pilot will touch (see "Real-world risk" in `AGENTS.md`).
-5. **Do you already have an architecture or a stack in mind?** Optional. Default: the stack already in the repository, otherwise the one the user knows best. If there is nothing to base a choice on, propose one and ask for a yes.
+5. **Do you already have an architecture or a stack in mind, and do you prefer unit or end-to-end tests for the next specs?** Both are optional. Default stack: the one already in the repository, otherwise the one the user knows best; if there is nothing to base a choice on, propose one and ask for a yes. Default test style: `unit` (`SPEC_TEST_STYLE`; the other values are `e2e` and `mixed`). Only the core test is black-box; the specs' tests follow the language's usual style.
 
 ## 3. Layer map
 
@@ -41,7 +41,7 @@ Fill the template with the answers: pain, who, the single function, "done when" 
 ## 5. RED: the tests come first
 
 - Create in `acceptance/core/`: a positive black-box test (`A01`) for the observable result and at least one negative test (`A02`, with `NEG` in its name) for what must never happen. They talk to the product only through its edge and never import product code.
-- Fill `RUN_CMD` and `TEST_CORE_CMD` in `.harness.env` (and `LAYERS_DIR` if the stack needs another folder).
+- Fill `RUN_CMD` and `TEST_CORE_CMD` in `.harness.env` (and `LAYERS_DIR` if the stack needs another folder). Also set up, for the stack's usual test runner, the tests of the specs that will come: `SPEC_TESTS_DIR`, `TEST_SPECS_CMD` (all the spec tests), `TEST_SPEC_CMD` (one spec, with `{spec}` in it, like `pytest tests -q -k {spec}`) and `SPEC_TEST_STYLE` from the answer.
 - Run `scripts/evidence.sh red core "<why they fail>"`. It must fail for the right reason (the product does not exist yet, not a typo in the test), and it records the failure in `PILOT.md`. If it passes, the test proves nothing: fix the test.
 - No product code before this evidence exists. Commit: `test: add the core acceptance tests`.
 

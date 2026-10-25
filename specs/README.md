@@ -9,4 +9,4 @@ One file per demand: `NNNN-slug.md`, created by `/spec` from `_template.md`.
 - A spec has a size (S, M, L; L means split it first) and no MoSCoW priority.
 - The `## Evidence` section at the end proves the red, green, review and refactor phases. It is filled by `scripts/evidence.sh`.
 
-The spec's tests live in `acceptance/specs/NNNN-slug/`.
+The spec's tests live under `SPEC_TESTS_DIR` (default `tests/`), in the language's usual style: unit, end-to-end or mixed (`SPEC_TEST_STYLE`). Their names carry the spec id (`S0001_R1_...`).

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # test.sh <core|specs|contracts|all> [spec-number]
-# Runs the test commands configured in .harness.env (TEST_CORE_CMD, TEST_SPECS_CMD,
-# TEST_CONTRACTS_CMD). Fails closed: the core group has no command until /start creates
-# the first acceptance test, and that is an error, never a green.
-# In TEST_SPECS_CMD, {spec} is replaced by the folder name under acceptance/specs/
-# (when a spec number is given) or by * (all specs).
+# Runs the test commands configured in .harness.env. Fails closed: the core group has no
+# command until /start creates the first acceptance test, and that is an error, never a green.
+#
+#   core                 TEST_CORE_CMD       the black-box tests of the pilot (acceptance/core)
+#   specs                TEST_SPECS_CMD      the tests of all the specs
+#   specs NNNN           TEST_SPEC_CMD       the tests of ONE spec; {spec} becomes its id (S0001)
+#   contracts            TEST_CONTRACTS_CMD  one suite per port, run against every adapter
+#   all                  core, specs and contracts
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,35 +19,34 @@ group="${1:-all}"
 spec="${2:-}"
 
 run_group() { # run_group <name> <key> <required: 0|1>
-  local name="$1" key="$2" required="$3" cmd dir
+  local name="$1" key="$2" required="$3" cmd
   cmd="$(env_get "$key" "")"
   if [ -z "$cmd" ]; then
     if [ "$required" = "1" ]; then
-      echo "test: $key is empty in .harness.env. Run /start to create the first acceptance test." >&2
+      if [ "$key" = "TEST_CORE_CMD" ]; then
+        echo "test: $key is empty in .harness.env. Run /start to create the first acceptance test." >&2
+      else
+        echo "test: $key is empty in .harness.env. Set it to the command that runs the tests of one spec." >&2
+      fi
       return 2
     fi
     echo "test: $name skipped ($key is empty)"
     return 0
   fi
-  if [ "$name" = "specs" ]; then
-    if [ -n "$spec" ]; then
-      dir="$(printf '%s\n' acceptance/specs/"$spec"-* | head -n1)"
-      if [ ! -d "$dir" ]; then
-        echo "test: no folder acceptance/specs/${spec}-*" >&2
-        return 2
-      fi
-      cmd="${cmd//\{spec\}/$(basename "$dir")}"
-    else
-      cmd="${cmd//\{spec\}/*}"
-    fi
-  fi
+  cmd="${cmd//\{spec\}/S$spec}"
   echo "== $name: $cmd"
   bash -c "$cmd"
 }
 
 case "$group" in
   core)      run_group core TEST_CORE_CMD 1 ;;
-  specs)     run_group specs TEST_SPECS_CMD 0 ;;
+  specs)
+    if [ -n "$spec" ]; then
+      run_group "spec S$spec" TEST_SPEC_CMD 1
+    else
+      run_group specs TEST_SPECS_CMD 0
+    fi
+    ;;
   contracts) run_group contracts TEST_CONTRACTS_CMD 0 ;;
   all)
     rc=0

@@ -43,8 +43,8 @@ Then <it is rejected / nothing is sent / nothing is written>
 
 ## Tests
 
-Folder: `acceptance/specs/NNNN-slug/`. Test names cite the requirement id; negative ones carry `NEG`.
-Done means: core tests, these tests and the contract tests of every port touched all pass.
+Under `SPEC_TESTS_DIR`, in the language's usual style (`SPEC_TEST_STYLE`: unit, e2e or mixed). Test names carry the requirement id (`S0000_R1_...`); negative ones carry `NEG`.
+Done means: core tests, these tests, the other specs' tests and the contract tests of every port touched all pass.
 
 ## Evidence
 
