@@ -19,3 +19,7 @@ History of what was done, generated from Conventional Commits by `scripts/change
 - **config:** Add SPEC_LANGUAGE and REVIEW_MODE options (e8a570d, 2026-10-25)
 - Add the Teseu-DD template (c99c286, 2026-10-25)
 
+### Documentation
+
+- Update the status now that the template is open (1eeed9b, 2026-10-25)
+
