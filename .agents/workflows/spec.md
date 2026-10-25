@@ -20,7 +20,7 @@ Run `scripts/test.sh core`. If it is not green, stop: the product is already bro
 
 ## 2. Write `specs/NNNN-slug.md`
 
-Copy `specs/_template.md` (NNNN is the next free number). Fill: the pain, out of scope, requirements numbered `S<NNNN>-R1..Rn`, acceptance criteria in Given/When/Then including the sad paths (error, empty, abandonment), size S/M/L (L means split it first), the planks touched. Mark which criteria are negative. No MoSCoW (priorities live in `BACKLOG.md`, if the user keeps one). If it needs new vocabulary, update `GLOSSARY.md`. If it needs a layer that is not on the layer map in `docs/architecture.md` (a new external service, a new kind of storage, a new interface), add it to the map and to `PLANKS.md` before going on.
+Copy `specs/_template.md` (NNNN is the next free number). Write the text in `SPEC_LANGUAGE` (the same as `NATIVE_LANGUAGE` when it is empty; headings, ids and Given/When/Then keywords stay in English). Fill: the pain, out of scope, requirements numbered `S<NNNN>-R1..Rn`, acceptance criteria in Given/When/Then including the sad paths (error, empty, abandonment), size S/M/L (L means split it first), the planks touched. Mark which criteria are negative. No MoSCoW (priorities live in `BACKLOG.md`, if the user keeps one). If it needs new vocabulary, update `GLOSSARY.md`. If it needs a layer that is not on the layer map in `docs/architecture.md` (a new external service, a new kind of storage, a new interface), add it to the map and to `PLANKS.md` before going on.
 
 ## 3. RED: the tests come first
 
@@ -38,7 +38,7 @@ Copy `specs/_template.md` (NNNN is the next free number). Fill: the pain, out of
 
 ## 5. REVIEW
 
-Run the `reviewer` agent on the diff and report its findings. The user triages every finding. Then run `scripts/evidence.sh review NNNN "<verdict and what was accepted or rejected>"`.
+Follow `REVIEW_MODE` (see "Review" in `AGENTS.md`). `auto`: run the `reviewer` agent on the diff and report its findings; the user triages every finding. `external`: say the work is ready for the user's own reviewer and wait for the verdict. Then run `scripts/evidence.sh review NNNN "<who, verdict, what was accepted or rejected>"`. `off`: skip this phase and go to the refactor.
 
 ## 6. REFACTOR
 

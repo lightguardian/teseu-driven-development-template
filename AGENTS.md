@@ -43,7 +43,7 @@ Scripts: `scripts/test.sh` (run a group of tests), `scripts/evidence.sh` (run a 
    The port is the one-way door: think about it. The adapter is the two-way door: it may be as dumb as you like.
 3. **Know the layers of this project.** The code layers above are only part of the picture. `docs/architecture.md` has a **layer map** for this project: code, external services (each one is an adapter behind a port), data, interfaces (including the project's own API), tests and infrastructure. `/start` writes it, every swappable layer becomes a plank in `PLANKS.md`, and any spec that needs a layer not on the map updates the map first.
 4. **The pilot is frozen legacy.** After `/start`, touch the pilot's adapters only for critical bugs, always with a test. New behavior goes into new modules or adapters behind a port. If a patch to a plank is growing, stop and propose `/swap` instead of patching.
-5. **Red, green, review, refactor.** Every unit of work (the pilot, a spec, a swap) follows the TDD cycle in this order: (1) write the tests and watch them fail for the right reason (red); (2) write the least code that makes them pass (green); (3) review with the read-only `reviewer`; (4) refactor with the tests staying green. Then the cycle starts again. Record each phase with `scripts/evidence.sh <red|green|review|refactor> <core|NNNN|swap>`: it runs the tests, checks that the result is the expected one, and appends the proof to the `## Evidence` section of `PILOT.md`, of the spec, or of `PLANKS.md`. Do not write product code before a red is recorded. Do not refactor before the review.
+5. **Red, green, review, refactor.** Every unit of work (the pilot, a spec, a swap) follows the TDD cycle in this order: (1) write the tests and watch them fail for the right reason (red); (2) write the least code that makes them pass (green); (3) review, by the built-in read-only `reviewer` or by the user's own reviewer, according to `REVIEW_MODE`; (4) refactor with the tests staying green. Then the cycle starts again. Record each phase with `scripts/evidence.sh <red|green|review|refactor> <core|NNNN|swap>`: it runs the tests, checks that the result is the expected one, and appends the proof to the `## Evidence` section of `PILOT.md`, of the spec, or of `PLANKS.md`. Do not write product code before a red is recorded. Do not refactor before the review (unless `REVIEW_MODE=off`).
 6. **Every spec has positive and negative tests.** Positive tests prove that the thing works. Negative tests prove that the wrong thing does not happen: invalid input is rejected, the forbidden action is denied, a failed operation leaves no side effect, nothing is sent to someone who opted out. Put `NEG` in the name of every negative test. The core suite and every spec need at least one, and every sad path of a Given/When/Then becomes one. A spec has numbered requirements (`S0001-R1`) and tests whose names cite them. A spec is done when the core tests, its own tests and the contract tests of every port it touched all pass. Run `scripts/test.sh core` before and after every change; if a test fails, either the test was wrong (fix it and explain; if it is a core test, ask the user) or the change broke the product (fix the code, never the test).
 7. **Rigor follows use.** `RIGOR` in `.harness.env` says R0 to R3. Do not create documents or enable checks above the current level. `/harden` raises it when the user decides.
 
@@ -65,8 +65,10 @@ Scripts: `scripts/test.sh` (run a group of tests), `scripts/evidence.sh` (run a 
 |---|---|
 | Interviews and chat with the user | Code and identifiers |
 | `PILOT.md`, `PLANKS.md`, `BACKLOG.md`, `GLOSSARY.md` text | Commits and branch names |
-| Specs | Test names |
-| Issues and PR descriptions | PR titles, ADRs, `docs/architecture.md`, this file |
+| Issues and PR descriptions | Test names |
+| | PR titles, ADRs, `docs/architecture.md`, this file |
+
+Specs have their own setting: write the text of `specs/*.md` and of their criteria in `SPEC_LANGUAGE`; if it is empty, use `NATIVE_LANGUAGE`. The Given/When/Then keywords, section headings (the scripts look for `## Evidence`), requirement ids and test names stay in English.
 
 Code comments are in English. Never mix languages inside code. Consult `GLOSSARY.md` before naming anything.
 
@@ -78,12 +80,18 @@ Code comments are in English. Never mix languages inside code. Consult `GLOSSARY
 - **Ask before every push.** If `ASK_BEFORE_PUSH` is `true`: summarize what will go out and wait for an explicit "yes" in chat before `git push`. Never force push.
 - **History.** `CHANGELOG.md` is generated from the commits by `scripts/changelog.sh`. Never edit it by hand. Before a push, regenerate it and commit it as `docs(changelog): update changelog`. The pre-push hook blocks a push when it is stale (`ENFORCE_CHANGELOG`).
 - The pre-push hook may also run the core tests (`RUN_CORE_BEFORE_PUSH`) and open a review window (`REVIEW_BEFORE_PUSH`). Wait for it. If it fails because nobody answered, stop and tell the user to run the command from their own terminal. Never retry in a loop.
-- Never edit `.githooks/` or the review scripts, and never lower a rule in `.harness.env`. You may edit it only to fill `NATIVE_LANGUAGE`, `LAYERS_DIR`, `RUN_CMD` and `TEST_*_CMD` (during `/start`), `PRIORITIZATION` (during `/backlog`), and to raise `RIGOR` and its toggles (during `/harden`, with the user's approval).
+- Never edit `.githooks/` or the review scripts, and never lower a rule in `.harness.env`. You may edit it only to fill `NATIVE_LANGUAGE`, `LAYERS_DIR`, `RUN_CMD` and `TEST_*_CMD` (during `/start`), `PRIORITIZATION` (during `/backlog`), `SPEC_LANGUAGE` and `REVIEW_MODE` (only when the user asks), and to raise `RIGOR` and its toggles (during `/harden`, with the user's approval).
 - Never commit `.env`, keys, cookies or personal config, not even to a private repository.
 
 ## Review
 
-Before the push, run the `reviewer` agent (read-only) on the work and report its findings. The user decides which ones to fix. You never dismiss one silently.
+`REVIEW_MODE` in `.harness.env` says who reviews, between green and refactor:
+
+- `auto` (default): run the read-only `reviewer` agent on the work and report its findings. The user decides which ones to fix. You never dismiss one silently.
+- `external`: the user has another reviewer (a person, a review bot, another agent). Do not run the built-in one. Say the work is ready for review, wait for the verdict, apply what the user accepts, and record it with `scripts/evidence.sh review ... "external: <who>, <verdict>"`.
+- `off`: there is no review phase; refactor follows green.
+
+An explicit `/review` from the user always runs the built-in reviewer. Change `REVIEW_MODE` only when the user asks.
 
 ## Scope
 

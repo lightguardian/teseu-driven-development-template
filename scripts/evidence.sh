@@ -13,6 +13,9 @@
 #   refactor  same checks as green: proves the refactor changed no behavior.
 #
 # The order is enforced: red, green, review, refactor, then a new red.
+# REVIEW_MODE in .harness.env: auto (built-in reviewer) and external (another reviewer)
+# both keep the review phase and record who reviewed; off removes the phase, so refactor
+# may follow green directly.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +51,19 @@ if [ ! -f "$doc" ]; then
   exit 2
 fi
 
+review_mode="$(env_get REVIEW_MODE auto)"
+case "$review_mode" in
+  auto|external|off) ;;
+  *)
+    echo "evidence: unknown REVIEW_MODE '$review_mode' in .harness.env (auto, external, off)" >&2
+    exit 2
+    ;;
+esac
+if [ "$phase" = "review" ] && [ "$review_mode" = "off" ]; then
+  echo "evidence: REVIEW_MODE=off, so there is no review phase. Go from green to refactor." >&2
+  exit 1
+fi
+
 # --- the cycle must be followed in order -------------------------------------------
 last="$(awk '/^## Evidence/{e=1} e && /^### (red|green|review|refactor) /{p=$2} END{print p}' "$doc")"
 ok=0
@@ -55,7 +71,12 @@ case "$phase" in
   red)      case "${last:-none}" in none|refactor|red) ok=1 ;; esac ;;
   green)    case "${last:-none}" in red|green) ok=1 ;; esac ;;
   review)   case "${last:-none}" in green|review) ok=1 ;; esac ;;
-  refactor) case "${last:-none}" in review|refactor) ok=1 ;; esac ;;
+  refactor)
+    case "${last:-none}" in
+      review|refactor) ok=1 ;;
+      green) if [ "$review_mode" = "off" ]; then ok=1; fi ;;
+    esac
+    ;;
 esac
 if [ "$ok" != "1" ]; then
   echo "evidence: cannot record '$phase' after '${last:-nothing}'. The cycle is red, green, review, refactor." >&2
@@ -111,6 +132,8 @@ record() {
     printf '\n### %s | %s | %s\n\n' "$phase" "$(date '+%Y-%m-%d %H:%M')" "$label"
     printf -- '- result: %s\n' "$1"
     if [ -n "$neg" ]; then printf -- '- negative tests found: %s\n' "$neg"; fi
+    if [ "$phase" = "review" ]; then printf -- '- review mode: %s\n' "$review_mode"; fi
+    if [ "$phase" = "refactor" ] && [ "$review_mode" = "off" ]; then printf -- '- review: skipped (REVIEW_MODE=off)\n'; fi
     if [ -n "$note" ]; then printf -- '- note: %s\n' "$note"; fi
     if [ -s "$log" ]; then
       printf '\n```text\n'

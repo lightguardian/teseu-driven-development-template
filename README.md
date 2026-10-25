@@ -80,7 +80,7 @@ A ordem é obrigatória e o script `scripts/evidence.sh` a impõe:
 
 1. **RED.** Escreve-se o teste (positivo e negativo) e vê-se falhar pelo motivo certo. A falha é **documentada** no próprio arquivo (`## Evidence`). Um teste que passa antes de existir código não prova nada e é recusado. Nenhum código de produto antes disso.
 2. **GREEN.** O mínimo de código para passar, sem limpeza. Passam o teste core, os testes da spec e os contratos.
-3. **REVIEW.** O agente `reviewer` (somente leitura) olha o diff. Quem decide o que corrigir é você.
+3. **REVIEW.** O agente `reviewer` (somente leitura) olha o diff e quem decide o que corrigir é você. Se você já usa outro revisor (uma pessoa, um bot de review, outro agente), desligue o automático com `REVIEW_MODE=external`: o agente espera o seu veredito e o registra. Também dá para pular a fase (`REVIEW_MODE=off`). Veja "Configurações" abaixo.
 4. **REFACTOR.** Só depois da revisão, com os testes continuando verdes. Aí o ciclo recomeça.
 
 O agente faz um commit ao fim de cada fase, sem pedir. Assim o histórico mostra o ciclo: `test(S0001): ...`, `feat(...)`, `refactor(...)`.
@@ -109,7 +109,7 @@ Na primeira funcionalidade que você pedir, e em todas as seguintes, o agente n�
 4. O que ela **não** deve fazer e o que nunca pode acontecer?
 5. Qual tábua ela toca? (Se a demanda é "melhorar X", é uma troca: `/swap`.)
 
-Aí entra o SDD, seguindo os mesmos princípios do fluxo anterior de PRD: requisitos numerados, critérios em Given/When/Then **com os caminhos tristes**, tamanho S/M/L, cada critério verificável por teste, glossário com o termo nativo e o identificador em inglês. A diferença é que cada spec resolve um problema só, e não tem MoSCoW: a spec é feita no momento em que a necessidade aparece.
+Aí entra o SDD, seguindo os mesmos princípios do fluxo anterior de PRD: requisitos numerados, critérios em Given/When/Then **com os caminhos tristes**, tamanho S/M/L, cada critério verificável por teste, glossário com o termo nativo e o identificador em inglês. A diferença é que cada spec resolve um problema só, e não tem MoSCoW: a spec é feita no momento em que a necessidade aparece. O idioma em que as specs são escritas é escolha sua (`SPEC_LANGUAGE`); os cabeçalhos, os ids, as palavras Given/When/Then e os nomes dos testes ficam em inglês.
 
 ## O mapa de camadas do projeto
 
@@ -259,7 +259,7 @@ Como o agente faz um commit por fase do ciclo, o histórico conta a história re
 | `/pain` | Algo incomoda: anota no `PLANKS.md` sem agir, para a próxima troca nascer de dor real |
 | `/swap <tábua>` | Troca uma tábua sem parar o produto |
 | `/harden [R1\|R2\|R3]` | Sobe o nível de rigor, criando só os documentos e checagens daquele nível |
-| `/review` | Roda o `reviewer` somente leitura no diff atual |
+| `/review` | Roda o `reviewer` somente leitura no diff atual (sempre, mesmo com `REVIEW_MODE` diferente de `auto`, porque você pediu) |
 | `/ship` | Testa, atualiza o changelog, pergunta, dá o push e propõe o pull request |
 
 Ideias de comandos futuros, ainda não implementadas:
@@ -291,6 +291,23 @@ Exemplos: `feat(report): export the monthly summary`, `test(S0001): add failing 
 - **Push:** é a única trava. O agente resume o que vai subir e espera o seu "sim" no chat. O hook `pre-push` ainda confere o changelog, pode rodar os testes core (`RUN_CORE_BEFORE_PUSH`) e abrir uma janela de revisão (`REVIEW_BEFORE_PUSH`).
 - O agente nunca usa `--no-verify` e nunca faz force push.
 
+## Configurações
+
+Tudo o que você pode escolher fica no `.harness.env`. Os agentes só mudam essas chaves quando você pede (ou, no caso de `RIGOR`, no `/harden`, e nunca para baixar).
+
+| Chave | Valores | O que muda |
+|---|---|---|
+| `NATIVE_LANGUAGE` | `pt-BR` (padrão), `en`, `es`... | Idioma das entrevistas, do `PILOT.md`, `PLANKS.md`, `BACKLOG.md`, `GLOSSARY.md`, das issues e dos PRs |
+| `SPEC_LANGUAGE` | vazio (padrão), `en`, `pt-BR`... | Idioma das specs. Vazio significa o mesmo de `NATIVE_LANGUAGE`. Cabeçalhos, ids, Given/When/Then e nomes de testes ficam em inglês |
+| `REVIEW_MODE` | `auto` (padrão), `external`, `off` | Quem revisa entre o green e o refactor: o `reviewer` embutido, o **seu** revisor (o agente espera o veredito e o registra) ou ninguém |
+| `PRIORITIZATION` | `none` (padrão), `moscow`, `rice`, `ice` | Como o `BACKLOG.md` é ordenado |
+| `RIGOR` | `R0` a `R3` | Quanto de documentação e checagem existe (`/harden` sobe) |
+| `ASK_BEFORE_PUSH` | `true` (padrão) | O agente pede o seu "sim" antes de cada push |
+| `RUN_CORE_BEFORE_PUSH`, `ENFORCE_CHANGELOG`, `REVIEW_BEFORE_PUSH` | `true` / `false` | O que o hook `pre-push` confere antes de deixar o push sair |
+| `ENFORCE_CONVENTIONAL_COMMITS`, `PROTECT_CORE_TESTS` | `true` (padrão) | O que o hook `commit-msg` confere |
+
+Os comandos de teste (`RUN_CMD`, `TEST_*_CMD`) e `LAYERS_DIR` são preenchidos pelo `/start` para a sua stack.
+
 ## Vários agentes
 
 A fonte única é o `AGENTS.md`. Cada ferramenta ganha uma casca fina que só aponta para ele (geradas por `scripts/sync-shells.sh`):
@@ -307,7 +324,7 @@ A fonte única é o `AGENTS.md`. Cada ferramenta ganha uma casca fina que só ap
 
 Para criar um comando novo: escreva `.agents/workflows/<nome>.md` e rode `scripts/sync-shells.sh`.
 
-Aviso honesto: os scripts foram testados num repositório descartável (77 verificações, incluindo os hooks, a ordem do ciclo, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
+Aviso honesto: os scripts foram testados num repositório descartável (105 verificações, incluindo os hooks, a ordem do ciclo, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
 
 ## Scripts
 

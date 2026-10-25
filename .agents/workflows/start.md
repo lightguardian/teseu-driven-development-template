@@ -55,7 +55,7 @@ Fill the template with the answers: pain, who, the single function, "done when" 
 
 ## 7. REVIEW and REFACTOR
 
-- Run the `reviewer` agent on the diff and report its findings. The user triages. Run `scripts/evidence.sh review core "<verdict and what was accepted or rejected>"`.
+- Review, according to `REVIEW_MODE` (see "Review" in `AGENTS.md`). `auto`: run the `reviewer` agent on the diff and report its findings; the user triages. `external`: say the work is ready for the user's own reviewer and wait for the verdict. Then run `scripts/evidence.sh review core "<who, verdict, what was accepted or rejected>"`. `off`: skip to the refactor.
 - Refactor only now, and only what the review accepted or the layers require. Run `scripts/evidence.sh refactor core` to prove the tests are still green. Commit: `refactor: ...`.
 
 ## 8. Hand over

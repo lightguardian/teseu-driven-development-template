@@ -7,7 +7,7 @@ planks: []      # planks this spec touches
 
 # S0000: title
 
-> Write in the team's native language. One spec solves one real problem. No MoSCoW.
+> Write the text in `SPEC_LANGUAGE` (`.harness.env`; the native language when empty). Headings, ids, Given/When/Then keywords and test names stay in English. One spec solves one real problem. No MoSCoW.
 > Copy this file to `specs/NNNN-slug.md` (NNNN = next free number) with `/spec`.
 
 ## Pain

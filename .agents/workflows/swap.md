@@ -32,7 +32,7 @@ Add the new adapter to the contract suite as an empty skeleton and run `scripts/
 
 ## 5. REVIEW
 
-Run the `reviewer` agent and report its findings. The user triages. Record it with `scripts/evidence.sh review swap "<verdict>"`.
+Follow `REVIEW_MODE` (see "Review" in `AGENTS.md`): the `reviewer` agent in `auto`, the user's own reviewer in `external`, no review in `off`. Record it with `scripts/evidence.sh review swap "<who and verdict>"` (not in `off`).
 
 ## 6. REFACTOR: contract
 
