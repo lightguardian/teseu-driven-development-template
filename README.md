@@ -500,4 +500,4 @@ Aviso honesto: os scripts foram testados num repositório descartável (253 veri
 
 ## Status
 
-Template em construção, privado até o lançamento. Os scripts foram testados; as cascas por ferramenta ainda não foram testadas dentro de cada uma.
+Template aberto e em evolução. Os scripts foram testados em repositórios descartáveis (253 verificações). Ainda **não** foram testados: as cascas de cada ferramenta (Gemini, Cursor, OpenCode, Antigravity) dentro delas, e o fluxo completo (`/start`, `/spec`, `/swap`) num projeto real com um agente de verdade. Ao usar, espere arestas; relatos e sugestões são bem-vindos nas issues.
