@@ -36,19 +36,19 @@ Names carry the requirement id (`S0001_R1_...`). Make sure `TEST_SPECS_CMD` (all
 
 If `core_change` is true, update the core test first (with the user's yes). It will fail until the code changes; that failure is part of this red. Its commit needs `Core-Change: <reason>`.
 
-Run `scripts/evidence.sh red NNNN "<why they fail>"`. It checks that the tests for this kind exist, that the new tests fail, that the core tests still pass (unless `core_change`) and that a negative test exists, then records it in the spec. A test that passes before any code is written proves nothing: strengthen it. Do not write product code until this evidence exists. Commit: `test(S<NNNN>): add failing tests for <slug>`.
+Run `scripts/evidence.sh red NNNN "<why they fail>"`. It checks that the tests for this kind exist, that the new tests fail in BOTH stages (the feature's black-box test and the language-style tests), that the core tests still pass (unless `core_change`) and that a negative test exists, then records it in the spec and creates the checklist `specs/NNNN-slug.checklist.md`. A test that passes before any code is written proves nothing: strengthen it. Do not write product code until this evidence exists. Commit: `test(S<NNNN>): add failing tests for <slug>`.
 
 ## 4. GREEN: the least code that passes
 
 - Put code in the right layer. New code uses the right pattern from the start (port, then adapter, wired in `app/`).
 - Do not edit the pilot's adapters unless a requirement forces it. New behavior goes into new modules or adapters.
 - No cleanup and no extras in this phase. Small steps; run the spec tests and the core tests after each one.
-- Run `scripts/evidence.sh green NNNN`. It runs the core tests, the spec's tests, the other specs' tests, the contract tests and `scripts/arch-check.sh`, and records the pass. A spec that passes its own tests but breaks the core is not done. Commit: `feat(<scope>): <what it does>` (or `fix(...)`).
+- Run `scripts/evidence.sh green NNNN`. Verification has two stages in this order. Stage 1, black-box: the core test, then this feature's test, then every other feature's. Stage 2, only if stage 1 passed: this spec's language-style tests, the other specs', the contracts and `scripts/arch-check.sh`. The run updates the checklist (`specs/NNNN-slug.checklist.md`, the core test on top) and records the pass only if every box is checked. If a stage fails, fix the code and run it again. A spec that passes its own tests but breaks the core is not done. Commit: `feat(<scope>): <what it does>` (or `fix(...)`).
 - For a refactor or chore, this phase is the change itself, made after the baseline green and with every test still passing.
 
 ## 5. REVIEW
 
-Follow `REVIEW_MODE` (see "Review" in `AGENTS.md`). `auto`: run the `reviewer` agent on the diff and report its findings; the user triages every finding. `external`: say the work is ready for the user's own reviewer and wait for the verdict. Then run `scripts/evidence.sh review NNNN "<who, verdict, what was accepted or rejected>"`. `off`: skip this phase and go to the refactor.
+The review starts only when the checklist is complete (`scripts/evidence.sh review` refuses otherwise). Follow `REVIEW_MODE` (see "Review" in `AGENTS.md`). `auto`: run the `reviewer` agent on the diff and report its findings; the user triages every finding. `external`: say the work is ready for the user's own reviewer and wait for the verdict. Then run `scripts/evidence.sh review NNNN "<who, verdict, what was accepted or rejected>"`. `off`: skip this phase and go to the refactor.
 
 ## 6. REFACTOR
 

@@ -179,6 +179,34 @@ A cada demanda o agente pergunta: **o teste core ainda faz sentido?** Se o teste
 - **Toda spec passa no teste core e nos seus.** O green também roda os testes das outras specs e os contratos das portas que ela tocou, para não quebrar o que já funcionava.
 - **Os testes caixa-preta são protegidos, mas não congelados.** O hook `commit-msg` recusa commit que altera ou apaga `acceptance/core/` sem `Core-Change:` e `acceptance/features/` sem `Acceptance-Change:`. Um teste de feature pode ficar obsoleto com o tempo; o que não pode é sumir sem motivo registrado.
 
+### Verificação em duas etapas e o checklist
+
+Toda verificação segue **duas etapas, sempre nesta ordem**, e uma não substitui a outra:
+
+1. **Etapa 1, caixa-preta (os testes centrais):** o teste core primeiro, depois o teste caixa-preta da própria feature, depois os das outras features.
+2. **Etapa 2, os testes da linguagem:** os testes da spec, os das outras specs, os contratos e as regras de arquitetura. Só roda se a etapa 1 passou.
+
+Cada execução do `scripts/evidence.sh` gera de novo um **checklist em Markdown** ao lado da spec (`specs/NNNN-slug.checklist.md`; o piloto tem o `PILOT.checklist.md`), com o teste central no topo:
+
+```markdown
+## Stage 1: black-box (the central tests)
+- [x] Core test (acceptance/core): passed (`A01`, `A02_NEG`)
+- [x] This feature (acceptance/features): passed (`S0002_R1`, `S0002_R2_NEG`)
+- [x] All the features: passed
+
+## Stage 2: the language's own tests
+- [x] This spec (tests): passed (`S0002_R1`, `S0002_R2_NEG`, `S0002_R3`)
+- [x] All the specs: passed
+- [x] Contracts: passed
+- [x] Architecture rules (scripts/arch-check.sh): passed
+
+Result: complete
+```
+
+O agente não marca caixas na mão: quem marca é o script, a partir do resultado de cada etapa, e só com o checklist completo ele deixa seguir para a **revisão**, o commit do green e o `/ship`. Se algo falha, as caixas ficam abertas e o item mostra `FAILED` ou `not run`. O RED também exige que os testes novos falhem **nas duas etapas**: se o teste caixa-preta falha mas o da linguagem já passava antes do código, o RED é recusado.
+
+Limite honesto: as caixas refletem o resultado de cada **etapa** (o código de saída do comando configurado). Os ids listados vêm do nome dos testes nos arquivos, não de um relatório por teste, porque cada linguagem imprime o resultado de um jeito.
+
 ### Trocar de linguagem
 
 Sem teste caixa-preta não dá para provar uma troca de linguagem. Quem prova é o conjunto `acceptance/core/` mais `acceptance/features/`, e é por isso que cada `feature` ganha o seu. O que ficou coberto **só** por testes da linguagem (correções de bug, detalhes) precisa ser portado à mão; o `/swap` lista isso antes da troca.
@@ -225,6 +253,7 @@ LICENSE                    MIT (a licença do template; o /start pergunta o que 
 AGENTS.md                  fonte única de regras para qualquer agente (em inglês)
 CLAUDE.md, GEMINI.md       cada um só importa o AGENTS.md
 PILOT.md                   meia página do piloto: dor, função, "pronto quando", evidências
+PILOT.checklist.md        checklist gerado dos testes do piloto (nunca editar à mão)
 PLANKS.md                  o livro das tábuas: níveis, dores, adiados, histórico de trocas
 BACKLOG.md                 opcional: várias demandas anotadas e ordenadas (none, MoSCoW, RICE, ICE)
 CHANGELOG.md               histórico do que foi feito, gerado dos commits
@@ -243,7 +272,7 @@ acceptance/
   features/NNNN-slug/      um teste caixa-preta por spec do tipo feature
 tests/                     testes da linguagem para os detalhes das specs, unitários ou end-to-end (SPEC_TESTS_DIR)
 contracts/                 um conjunto de testes por porta, rodado contra todos os adaptadores
-specs/                     NNNN-slug.md, uma por demanda (+ _template.md)
+specs/                     NNNN-slug.md, uma por demanda, e NNNN-slug.checklist.md gerado ao lado (+ _template.md)
 docs/                      architecture.md (mapa de camadas), adr/ (a partir do R3)
 
 .agents/                   a fonte canônica dos comandos, agentes e regras
@@ -371,7 +400,7 @@ Tudo o que você pode escolher fica no `.harness.env`. Os agentes só mudam essa
 | `RUN_CORE_BEFORE_PUSH`, `ENFORCE_CHANGELOG`, `REVIEW_BEFORE_PUSH` | `true` / `false` | O que o hook `pre-push` confere antes de deixar o push sair |
 | `ENFORCE_CONVENTIONAL_COMMITS`, `PROTECT_CORE_TESTS` | `true` (padrão) | O que o hook `commit-msg` confere |
 
-Os comandos de teste (`RUN_CMD`, `TEST_*_CMD`) e `LAYERS_DIR` são preenchidos pelo `/start` para a sua stack.
+Os comandos de teste (`RUN_CMD` e `TEST_CORE_CMD`, `TEST_FEATURES_CMD`, `TEST_FEATURE_CMD`, `TEST_SPECS_CMD`, `TEST_SPEC_CMD`, `TEST_CONTRACTS_CMD`) e `LAYERS_DIR` são preenchidos pelo `/start` para a sua stack: os três primeiros formam a etapa 1 (caixa-preta), os outros a etapa 2.
 
 ## Vários agentes
 
@@ -389,14 +418,14 @@ A fonte única é o `AGENTS.md`. Cada ferramenta ganha uma casca fina que só ap
 
 Para criar um comando novo: escreva `.agents/workflows/<nome>.md` e rode `scripts/sync-shells.sh`.
 
-Aviso honesto: os scripts foram testados num repositório descartável (161 verificações, incluindo os hooks, a ordem do ciclo, os tipos de demanda, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
+Aviso honesto: os scripts foram testados num repositório descartável (210 verificações, incluindo os hooks, a ordem do ciclo, os tipos de demanda, as duas etapas e os checklists, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
 
 ## Scripts
 
 | Script | O que faz |
 |---|---|
-| `scripts/test.sh core\|specs\|contracts\|all [NNNN]` | Roda os testes configurados no `.harness.env`. Falha fechado: sem teste core configurado, é erro, nunca verde |
-| `scripts/evidence.sh red\|green\|review\|refactor core\|NNNN\|swap [nota]` | Roda os testes da fase, confere o resultado esperado, impõe a ordem do ciclo e registra a prova em `## Evidence` |
+| `scripts/test.sh core\|features\|specs\|contracts\|all [NNNN]` | Roda os testes configurados no `.harness.env`. Falha fechado: sem teste core configurado, é erro, nunca verde |
+| `scripts/evidence.sh red\|green\|review\|refactor core\|NNNN\|swap [nota]` | Roda a verificação em duas etapas da fase, confere o resultado esperado, impõe a ordem do ciclo, regenera o checklist e registra a prova em `## Evidence` |
 | `scripts/arch-check.sh` | Regras de camadas e "teste de aceitação não importa código do produto" |
 | `scripts/changelog.sh [--check]` | Gera o `CHANGELOG.md` dos commits; `--check` confere se está em dia |
 | `scripts/backlog.sh [--check]` | Calcula as notas (RICE, ICE) e ordena o `BACKLOG.md` |

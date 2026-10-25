@@ -41,7 +41,7 @@ Fill the template with the answers: pain, who, the single function, "done when" 
 ## 5. RED: the tests come first
 
 - Create in `acceptance/core/`: a positive black-box test (`A01`) for the observable result and at least one negative test (`A02`, with `NEG` in its name) for what must never happen. They talk to the product only through its edge and never import product code.
-- Fill `RUN_CMD` and `TEST_CORE_CMD` in `.harness.env` (and `LAYERS_DIR` if the stack needs another folder). Also set up, for the stack's usual test runner, the tests of the specs that will come: `SPEC_TESTS_DIR`, `TEST_SPECS_CMD` (all the spec tests), `TEST_SPEC_CMD` (one spec, with `{spec}` in it, like `pytest tests -q -k {spec}`) and `SPEC_TEST_STYLE` from the answer.
+- Fill `RUN_CMD` and `TEST_CORE_CMD` in `.harness.env` (and `LAYERS_DIR` if the stack needs another folder). Also set up, for the stack's usual test runner, the tests of the specs that will come: `SPEC_TESTS_DIR`, `TEST_SPECS_CMD` (all the spec tests), `TEST_SPEC_CMD` (one spec, with `{spec}` in it, like `pytest tests -q -k {spec}`), `TEST_FEATURES_CMD` and `TEST_FEATURE_CMD` (the same pair for the black-box tests in `acceptance/features/`) and `SPEC_TEST_STYLE` from the answer.
 - Run `scripts/evidence.sh red core "<why they fail>"`. It must fail for the right reason (the product does not exist yet, not a typo in the test), and it records the failure in `PILOT.md`. If it passes, the test proves nothing: fix the test.
 - No product code before this evidence exists. Commit: `test: add the core acceptance tests`.
 
@@ -51,7 +51,7 @@ Fill the template with the answers: pain, who, the single function, "done when" 
 - One port per thing that may change later. Each port gets at least one dumb adapter (hardcoded, in memory, a file, a fake of the external service). Spend two minutes on each port's shape and none on making the adapter good.
 - Only `app/` wires adapters to ports.
 - Loop until the core tests pass. If the same test fails twice for the same reason, stop and report.
-- Run `scripts/evidence.sh green core`. It runs the core tests and `scripts/arch-check.sh` and records the pass. Commit: `feat: add the pilot`.
+- Run `scripts/evidence.sh green core`. It runs the core tests and `scripts/arch-check.sh`, completes the checklist `PILOT.checklist.md` and records the pass. Commit: `feat: add the pilot`.
 
 ## 7. REVIEW and REFACTOR
 

@@ -2,12 +2,20 @@
 # evidence.sh <red|green|review|refactor> <core|NNNN|swap> [note]
 #
 # Runs the right tests for one phase of the TDD cycle, checks that the result is the
-# expected one and appends the proof to the "## Evidence" section of PILOT.md (core),
-# of specs/NNNN-*.md (a spec) or of PLANKS.md (swap). Nothing is recorded when the
-# expectation is not met.
+# expected one, regenerates the checklist and appends the proof to the "## Evidence"
+# section of PILOT.md (core), of specs/NNNN-*.md (a spec) or of PLANKS.md (swap).
+# Nothing is recorded when the expectation is not met.
 #
-#   red       the new tests FAIL (and the core still passes); needs a note: why it fails.
-#             Which tests are required depends on the spec's kind (frontmatter):
+# Verification has TWO STAGES, always in this order:
+#   stage 1  black-box, the central tests: the core test, then the feature's own black-box
+#            test, then every other feature's. If stage 1 fails, stage 2 is not run.
+#   stage 2  the language's own tests: the spec's tests, the other specs', the contracts,
+#            then the architecture rules.
+# The checklist (PILOT.checklist.md or specs/NNNN-*.checklist.md) lists the tests of each
+# stage and is regenerated on every run. Review waits until every box is checked.
+#
+#   red       the new tests FAIL, in BOTH stages (and the core still passes); needs a note:
+#             why it fails. Which tests are required depends on the spec's kind (frontmatter):
 #               feature   a black-box test under acceptance/features/ AND tests in the
 #                         language's style under SPEC_TESTS_DIR, both naming the spec id
 #                         (S0001_R1_...), and at least one negative test (NEG)
@@ -15,10 +23,10 @@
 #               refactor, chore   no red: no new behavior is tested. Start with green.
 #             core_change: true in the frontmatter says the demand changes what the pilot
 #             promises: the core test is updated first, so it may fail in the red.
-#   green     everything passes: core, the target's tests, the other specs, contracts and
-#             the architecture rules. For a refactor or chore, the first green is the
-#             baseline, recorded before touching anything.
-#   review    no tests run. Needs a note: verdict and what was accepted or rejected.
+#   green     both stages pass. For a refactor or chore, the first green is the baseline,
+#             recorded before touching anything.
+#   review    no tests run. Needs a note: verdict and what was accepted or rejected, and a
+#             complete checklist.
 #   refactor  same checks as green: proves the refactor changed no behavior.
 #
 # The order is enforced: red, green, review, refactor, then a new red.
@@ -44,13 +52,15 @@ note="${3:-}"
 
 case "$phase" in red|green|review|refactor) ;; *) usage ;; esac
 
+checklist=""
 case "$target" in
-  core) doc="PILOT.md"; tests_dir="acceptance/core"; label="pilot" ;;
+  core) doc="PILOT.md"; tests_dir="acceptance/core"; label="pilot"; checklist="PILOT.checklist.md" ;;
   swap) doc="PLANKS.md"; tests_dir="contracts"; label="swap" ;;
   [0-9][0-9][0-9][0-9])
-    doc="$(printf '%s\n' specs/"$target"-*.md | head -n1)"
+    doc="$(printf '%s\n' specs/"$target"-*.md | grep -v '\.checklist\.md$' | head -n1)"
     tests_dir="$(env_get SPEC_TESTS_DIR tests)"
     label="spec $target"
+    checklist="${doc%.md}.checklist.md"
     ;;
   *) usage ;;
 esac
@@ -142,8 +152,10 @@ neg=""
 
 show_log() { sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -n "${1:-15}"; }
 
+have() { [ -n "$(env_get "$1" '')" ]; }
+
 need() {
-  if [ -z "$(env_get "$1" '')" ]; then
+  if ! have "$1"; then
     echo "evidence: $1 is empty in .harness.env" >&2
     exit 2
   fi
@@ -163,6 +175,16 @@ step() {
   return "$rc"
 }
 
+# stage <variable> <name> <command...>: like step, and stores pass or fail in <variable>
+stage() {
+  local var="$1" name="$2" rc
+  shift 2
+  step "$name" "$@"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then printf -v "$var" '%s' pass; else printf -v "$var" '%s' fail; fi
+  return "$rc"
+}
+
 # count_files <regex> <dir>: how many source files (not .md) under <dir> match the regex
 count_files() {
   if [ -d "$2" ]; then
@@ -174,12 +196,96 @@ count_files() {
   fi
 }
 
+# find_ids <regex> <dir>...: the distinct test ids found in the source files, one per line
+find_ids() {
+  local re="$1" d
+  shift
+  for d in "$@"; do
+    if [ -d "$d" ]; then
+      grep -rIhoE --exclude='*.md' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv \
+        --exclude-dir=venv --exclude-dir=vendor --exclude-dir=target --exclude-dir=dist \
+        --exclude-dir=build --exclude-dir=__pycache__ -e "$re" "$d" 2>/dev/null
+    fi
+  done | sort -u
+}
+
+fmt_ids() { awk 'NF { printf "%s`%s`", (n++ ? ", " : ""), $0 } END { if (n) printf "\n" }'; }
+
 die() { echo "evidence: $1" >&2; exit 1; }
 
-fail_red() {
-  echo "evidence: the new tests PASSED before any product code was written, so they prove nothing. Strengthen them." >&2
+fail_red() { # fail_red <which tests passed>
+  echo "evidence: the new $1 PASSED before any product code was written, so they prove nothing. Strengthen them." >&2
   show_log >&2
   exit 1
+}
+
+# --- the checklist -------------------------------------------------------------------
+# States: pass, fail, expectedfail (a red), notrun, na (does not apply)
+R_core=notrun; R_feat_one=na; R_feat_all=na
+R_spec_one=na; R_spec_all=na; R_contracts=na; R_arch=notrun
+
+box() { case "$1" in pass) printf '[x]' ;; *) printf '[ ]' ;; esac; }
+word() {
+  case "$1" in
+    pass) echo "passed" ;;
+    fail) echo "FAILED" ;;
+    expectedfail) echo "failed as expected (red)" ;;
+    notrun) echo "not run" ;;
+  esac
+}
+item() { # item <state> <text> [ids]
+  if [ "$1" = "na" ]; then
+    printf -- '- n/a: %s\n' "$2"
+  else
+    printf -- '- %s %s: %s%s\n' "$(box "$1")" "$2" "$(word "$1")" "${3:+ ($3)}"
+  fi
+}
+stage_ok() { # stage_ok <state>...: true when every state is pass or na
+  local s
+  for s in "$@"; do
+    case "$s" in pass|na) ;; *) return 1 ;; esac
+  done
+}
+
+write_checklist() {
+  [ -n "$checklist" ] || return 0
+  local core_ids feat_ids spec_ids s1 s2 result
+  core_ids="$(find_ids 'A[0-9]{2}[A-Za-z0-9_]*' acceptance/core | fmt_ids)"
+  feat_ids=""; spec_ids=""
+  if [ -n "$kind" ]; then
+    feat_ids="$(find_ids "S$target[_-]R[0-9]+[A-Za-z0-9_]*" acceptance/features | fmt_ids)"
+    spec_ids="$(find_ids "S$target[_-]R[0-9]+[A-Za-z0-9_]*" "$tests_dir" | fmt_ids)"
+  fi
+  if stage_ok "$R_core" "$R_feat_one" "$R_feat_all"; then s1="passed"; else s1="not complete"; fi
+  if stage_ok "$R_spec_one" "$R_spec_all" "$R_contracts" "$R_arch"; then s2="passed"; else s2="not complete"; fi
+  if [ "$s1" = "passed" ] && [ "$s2" = "passed" ]; then result="complete"; else result="incomplete"; fi
+  local title="$label"
+  if [ -n "$kind" ]; then title="spec $(basename "$doc" .md)"; fi
+  {
+    printf '# Checklist: %s\n\n' "$title"
+    printf 'Generated by `scripts/evidence.sh`. Do not edit by hand. Last run: %s, phase %s.\n\n' "$(date '+%Y-%m-%d %H:%M')" "$phase"
+    printf 'Verification has two stages, always in this order: first the black-box tests (the central ones), then the tests of the language. Review, commit and ship wait until every box is checked.\n\n'
+    printf '## Stage 1: black-box (the central tests)\n\n'
+    item "$R_core" "Core test (acceptance/core)" "$core_ids"
+    if [ -n "$kind" ]; then
+      if [ "$R_feat_one" = "na" ]; then
+        item na "no black-box test for this spec (kind: $kind)"
+      else
+        item "$R_feat_one" "This feature (acceptance/features)" "$feat_ids"
+      fi
+      if [ "$R_feat_all" = "na" ]; then item na "all the features (TEST_FEATURES_CMD is empty)"; else item "$R_feat_all" "All the features"; fi
+    fi
+    printf '\n## Stage 2: the language'"'"'s own tests\n\n'
+    if [ -n "$kind" ]; then
+      if [ "$R_spec_one" = "na" ]; then item na "no tests of its own (kind: $kind)"; else item "$R_spec_one" "This spec ($tests_dir)" "$spec_ids"; fi
+      if [ "$R_spec_all" = "na" ]; then item na "all the specs (TEST_SPECS_CMD is empty)"; else item "$R_spec_all" "All the specs"; fi
+      if [ "$R_contracts" = "na" ]; then item na "contracts (TEST_CONTRACTS_CMD is empty)"; else item "$R_contracts" "Contracts"; fi
+    fi
+    item "$R_arch" "Architecture rules (scripts/arch-check.sh)"
+    printf '\n## Result\n\n'
+    printf 'Stage 1: %s. Stage 2: %s.\n\n' "$s1" "$s2"
+    printf 'Result: %s\n' "$result"
+  } > "$checklist"
 }
 
 record() {
@@ -193,6 +299,7 @@ record() {
     if [ "$phase" = "red" ] && [ "$core_change" = "true" ]; then printf -- '- core test updated for this spec (core_change: true)\n'; fi
     if [ "$phase" = "review" ]; then printf -- '- review mode: %s\n' "$review_mode"; fi
     if [ "$phase" = "refactor" ] && [ "$review_mode" = "off" ]; then printf -- '- review: skipped (REVIEW_MODE=off)\n'; fi
+    if [ -n "$checklist" ]; then printf -- '- checklist: %s\n' "$checklist"; fi
     if [ -n "$note" ]; then printf -- '- note: %s\n' "$note"; fi
     if [ -s "$log" ]; then
       printf '\n```text\n'
@@ -203,12 +310,26 @@ record() {
   echo "evidence: recorded $phase for $label in $doc ($1)"
 }
 
+# items that this run is going to check start as "not run" (a failed stage 1 leaves stage 2 so)
+if [ -n "$kind" ]; then
+  [ "$no_red" != "1" ] && [ "$(count_files "S$target" acceptance/features)" -ge 1 ] && R_feat_one=notrun
+  [ "$no_red" != "1" ] && [ "$(count_files "S$target" "$tests_dir")" -ge 1 ] && R_spec_one=notrun
+  have TEST_FEATURES_CMD && R_feat_all=notrun
+  have TEST_SPECS_CMD && R_spec_all=notrun
+  have TEST_CONTRACTS_CMD && R_contracts=notrun
+fi
+
 # --- phases ---------------------------------------------------------------------------
 case "$phase" in
   review)
     if [ -z "$note" ]; then
       echo "evidence: review needs a note (verdict and what was accepted or rejected)" >&2
       exit 64
+    fi
+    if [ -n "$checklist" ]; then
+      if [ ! -f "$checklist" ] || ! grep -q '^Result: complete' "$checklist" || grep -q '^- \[ \]' "$checklist"; then
+        die "the checklist ($checklist) is not complete. Review, commit and ship wait until every box is checked: run scripts/evidence.sh green $target."
+      fi
     fi
     record "review recorded"
     ;;
@@ -223,13 +344,14 @@ case "$phase" in
         neg="$(count_files 'NEG' "$tests_dir")"
         [ "$neg" -ge 1 ] || die "no negative test found in $tests_dir. Put NEG in the name of at least one test."
         need TEST_CORE_CMD
-        if step core scripts/test.sh core; then fail_red; fi
+        if stage R_core core scripts/test.sh core; then fail_red "core tests"; fi
+        R_core=expectedfail
         ;;
       swap)
         neg="$(count_files 'NEG' "$tests_dir")"
         [ "$neg" -ge 1 ] || die "no negative test found in $tests_dir. Put NEG in the name of at least one test."
         need TEST_CONTRACTS_CMD
-        if step contracts scripts/test.sh contracts; then fail_red; fi
+        if step contracts scripts/test.sh contracts; then fail_red "contract tests"; fi
         ;;
       *)
         sid="S$target"
@@ -245,38 +367,75 @@ case "$phase" in
           [ $((n_bb + n_lang)) -ge 1 ] || die "a fix needs a regression test that mentions $sid (under $tests_dir or $bb_dir)."
         fi
         need TEST_CORE_CMD
-        need TEST_SPEC_CMD
+        # stage 1: the core must pass (unless this spec changes it), the feature's black-box test must fail
         if [ "$core_change" = "true" ]; then
-          step core scripts/test.sh core   # expected to fail: its test was just updated
-        elif ! step core scripts/test.sh core; then
+          stage R_core core scripts/test.sh core   # expected to fail: its test was just updated
+          [ "$R_core" = "fail" ] && R_core=expectedfail
+        elif ! stage R_core core scripts/test.sh core; then
+          write_checklist
           echo "evidence: the core tests are already failing. Fix that before starting a spec (or set core_change: true if this spec changes what the pilot promises)." >&2
           show_log >&2
           exit 1
         fi
-        if step "spec $target" scripts/test.sh specs "$target"; then fail_red; fi
+        bad=""
+        if [ "$n_bb" -ge 1 ]; then
+          need TEST_FEATURE_CMD
+          if stage R_feat_one "feature $target" scripts/test.sh features "$target"; then bad="black-box tests"; else R_feat_one=expectedfail; fi
+        fi
+        # stage 2: the language tests must fail too
+        if [ "$n_lang" -ge 1 ]; then
+          need TEST_SPEC_CMD
+          if stage R_spec_one "spec $target" scripts/test.sh specs "$target"; then bad="${bad:+$bad and }language tests"; else R_spec_one=expectedfail; fi
+        fi
+        [ -z "$bad" ] || fail_red "$bad"
         ;;
     esac
+    write_checklist
     record "failed as expected ($summary)"
     ;;
 
   green|refactor)
     failed=0
-    step core scripts/test.sh core || failed=1
     case "$target" in
-      core) ;;
-      swap) step all scripts/test.sh all || failed=1 ;;
+      core)
+        stage R_core core scripts/test.sh core || failed=1
+        if [ "$failed" = "0" ]; then stage R_arch architecture scripts/arch-check.sh || failed=1; fi
+        ;;
+      swap)
+        step all scripts/test.sh all || failed=1
+        step architecture scripts/arch-check.sh || failed=1
+        ;;
       *)
-        if [ "$no_red" != "1" ]; then
-          need TEST_SPEC_CMD
-          step "spec $target" scripts/test.sh specs "$target" || failed=1
+        sid="S$target"
+        bb_dir="acceptance/features"
+        need TEST_CORE_CMD
+        # stage 1: black-box, the central tests (the core first)
+        stage R_core core scripts/test.sh core || failed=1
+        if [ "$no_red" != "1" ] && [ "$(count_files "$sid" "$bb_dir")" -ge 1 ]; then
+          need TEST_FEATURE_CMD
+          stage R_feat_one "feature $target" scripts/test.sh features "$target" || failed=1
         fi
-        step "all specs" scripts/test.sh specs || failed=1
-        step contracts scripts/test.sh contracts || failed=1
+        if have TEST_FEATURES_CMD; then
+          stage R_feat_all "all features" scripts/test.sh features || failed=1
+        fi
+        # stage 2: the language's own tests, only when stage 1 passed
+        if [ "$failed" = "0" ]; then
+          if [ "$no_red" != "1" ] && [ "$(count_files "$sid" "$tests_dir")" -ge 1 ]; then
+            need TEST_SPEC_CMD
+            stage R_spec_one "spec $target" scripts/test.sh specs "$target" || failed=1
+          fi
+          if have TEST_SPECS_CMD; then stage R_spec_all "all specs" scripts/test.sh specs || failed=1; fi
+          if have TEST_CONTRACTS_CMD; then stage R_contracts contracts scripts/test.sh contracts || failed=1; fi
+          stage R_arch architecture scripts/arch-check.sh || failed=1
+        else
+          summary="${summary}, stage 2: not run"
+        fi
         ;;
     esac
-    step architecture scripts/arch-check.sh || failed=1
+    write_checklist
     if [ "$failed" = "1" ]; then
       echo "evidence: not recorded, something is failing: $summary" >&2
+      [ -n "$checklist" ] && echo "evidence: see $checklist" >&2
       show_log >&2
       exit 1
     fi

@@ -12,4 +12,6 @@ Rules for every test here:
 - **Red first.** Write the test, watch it fail for the right reason, and record it with `scripts/evidence.sh red ... "<why it fails>"` before writing product code.
 - **Not for everything.** A refactor, a chore or a bug fix has no black-box test here: nothing observable from outside is new.
 
+Their commands are `TEST_CORE_CMD`, `TEST_FEATURES_CMD` (all the features) and `TEST_FEATURE_CMD` (one feature, with `{spec}`). Verification runs them first (stage 1), and only then the language's own tests (stage 2).
+
 The tests of the details are not here: they are the language's usual unit or end-to-end tests, in `SPEC_TESTS_DIR` (default `tests/`). The test runner is chosen by `/start` for your stack and configured in `.harness.env`.

@@ -8,6 +8,7 @@ Closes #
 
 - [ ] Red was recorded before the code (`## Evidence` of the spec, pilot or `PLANKS.md`)
 - [ ] Positive and negative (`NEG`) tests cover the requirements and the sad paths
+- [ ] The checklist of the spec is complete (stage 1 black-box, then stage 2 language)
 - [ ] Core acceptance tests pass; `acceptance/core/` untouched (or `Core-Change:` explained)
 - [ ] Review done and refactor done after it (evidence recorded)
 - [ ] `PLANKS.md` updated (levels, pains, swap history)
