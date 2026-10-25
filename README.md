@@ -142,6 +142,21 @@ Exemplo ilustrativo (um sistema de campanhas de e-mail; é só um exemplo, o mé
 
 ## Os testes
 
+### Tudo sobre teste é opcional
+
+O Teseu-DD não prende você a testar. Algumas aplicações nem precisam de teste, e algumas coisas simplesmente não dá para testar. O `TEST_LEVEL` no `.harness.env` diz até onde o método pede:
+
+| Nível | O que significa |
+|---|---|
+| `none` | Nenhum teste. Nada é rodado nem exigido, não existe red, e o ciclo vira construir, revisar e refatorar |
+| `unit` | Só os testes da própria linguagem, que é a regra geral. Nenhum teste caixa-preta |
+| `core` (padrão) | Um teste core caixa-preta para o piloto, que é o único necessário no começo, e os testes da linguagem para as specs |
+| `full` | Além disso, um teste caixa-preta para cada spec do tipo `feature` |
+
+Uma demanda isolada também pode sair do jogo com `tests: none` na spec, explicando por quê. E "caixa-preta" é só o nome do teste **end-to-end** pela borda pública do produto: use a ferramenta que preferir. Tudo o que está abaixo vale no nível que você escolheu.
+
+### Os dois tipos de teste
+
 Há dois tipos de teste, com papéis diferentes:
 
 - **Caixa-preta:** olha o produto de fora e confere o que ele entrega. Existe só para demandas que trazem **capacidade nova**.
@@ -165,7 +180,7 @@ Cada spec tem um `kind`, e é ele que decide os testes:
 | `refactor` | Mudança interna, mesmo comportamento | Nenhum teste novo e **nenhum red**: registra-se o verde de partida, faz-se a mudança, revisa-se e refatora-se |
 | `chore` | Ferramentas, documentação, dependências | Igual ao `refactor` |
 
-Não existe caixa-preta para tudo de propósito: uma refatoração ou uma correção não traz nada novo observável por fora, e testar isso de fora não faz sentido. Cada demanda tem **um ponto central** (a primeira tábua listada na spec) e, se for `feature`, **um** teste caixa-preta. Se tocar em mais de duas tábuas, é sinal para dividir.
+Nada disso é obrigatório fora do nível escolhido: com `TEST_LEVEL=none`, ou com `tests: none` na spec, nenhum desses testes é exigido. Não existe caixa-preta para tudo de propósito: uma refatoração ou uma correção não traz nada novo observável por fora, e testar isso de fora não faz sentido. Cada demanda tem **um ponto central** (a primeira tábua listada na spec) e, se for `feature`, **um** teste caixa-preta. Se tocar em mais de duas tábuas, é sinal para dividir.
 
 ### O teste core é revisitado a cada demanda
 
@@ -181,7 +196,7 @@ A cada demanda o agente pergunta: **o teste core ainda faz sentido?** Se o teste
 
 ### Verificação em duas etapas e o checklist
 
-Toda verificação segue **duas etapas, sempre nesta ordem**, e uma não substitui a outra:
+Quando há testes, a verificação segue **duas etapas, sempre nesta ordem**, e uma não substitui a outra:
 
 1. **Etapa 1, caixa-preta (os testes centrais):** o teste core primeiro, depois o teste caixa-preta da própria feature, depois os das outras features.
 2. **Etapa 2, os testes da linguagem:** os testes da spec, os das outras specs, os contratos e as regras de arquitetura. Só roda se a etapa 1 passou.
@@ -203,7 +218,7 @@ Cada execução do `scripts/evidence.sh` gera de novo um **checklist em Markdown
 Result: complete
 ```
 
-O agente não marca caixas na mão: quem marca é o script, a partir do resultado de cada etapa, e só com o checklist completo ele deixa seguir para a **revisão**, o commit do green e o `/ship`. Se algo falha, as caixas ficam abertas e o item mostra `FAILED` ou `not run`. O RED também exige que os testes novos falhem **nas duas etapas**: se o teste caixa-preta falha mas o da linguagem já passava antes do código, o RED é recusado.
+O checklist **é só para conferência**, não uma trava. Quem marca as caixas é o script, a partir do resultado de cada etapa; o agente segue para a **revisão** quando tudo está marcado e avisa você se algo estiver aberto. Se algo falha, as caixas ficam abertas e o item mostra `FAILED` ou `not run`. Você pode editar o arquivo à vontade, e se a revisão for registrada com o checklist incompleto o script apenas avisa e anota isso na evidência. O RED também exige que os testes novos falhem **nas duas etapas**: se o teste caixa-preta falha mas o da linguagem já passava antes do código, o RED é recusado.
 
 Limite honesto: as caixas refletem o resultado de cada **etapa** (o código de saída do comando configurado). Os ids listados vêm do nome dos testes nos arquivos, não de um relatório por teste, porque cada linguagem imprime o resultado de um jeito.
 
@@ -391,6 +406,7 @@ Tudo o que você pode escolher fica no `.harness.env`. Os agentes só mudam essa
 |---|---|---|
 | `NATIVE_LANGUAGE` | `pt-BR` (padrão), `en`, `es`... | Idioma das entrevistas, do `PILOT.md`, `PLANKS.md`, `BACKLOG.md`, `GLOSSARY.md`, das issues e dos PRs |
 | `SPEC_LANGUAGE` | vazio (padrão), `en`, `pt-BR`... | Idioma das specs. Vazio significa o mesmo de `NATIVE_LANGUAGE`. Cabeçalhos, ids, Given/When/Then e nomes de testes ficam em inglês |
+| `TEST_LEVEL` | `core` (padrão), `none`, `unit`, `full` | Quanto de teste o método pede. Tudo é opcional: de nenhum teste até um teste caixa-preta por feature |
 | `SPEC_TEST_STYLE` | `unit` (padrão), `e2e`, `mixed` | Estilo dos testes da linguagem das specs. Os caixa-preta são o core e os das features |
 | `SPEC_TESTS_DIR` | `tests` (padrão) ou o lugar usual da sua linguagem | Onde ficam os testes das specs |
 | `REVIEW_MODE` | `auto` (padrão), `external`, `off` | Quem revisa entre o green e o refactor: o `reviewer` embutido, o **seu** revisor (o agente espera o veredito e o registra) ou ninguém |
@@ -418,7 +434,7 @@ A fonte única é o `AGENTS.md`. Cada ferramenta ganha uma casca fina que só ap
 
 Para criar um comando novo: escreva `.agents/workflows/<nome>.md` e rode `scripts/sync-shells.sh`.
 
-Aviso honesto: os scripts foram testados num repositório descartável (210 verificações, incluindo os hooks, a ordem do ciclo, os tipos de demanda, as duas etapas e os checklists, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
+Aviso honesto: os scripts foram testados num repositório descartável (253 verificações, incluindo os hooks, a ordem do ciclo, os tipos de demanda, os níveis de teste, as duas etapas e os checklists, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
 
 ## Scripts
 
@@ -443,6 +459,7 @@ Aviso honesto: os scripts foram testados num repositório descartável (210 veri
 - **Specs mais honestas.** Escritas depois do uso, falam de dores reais, não de suposições.
 - **Decisões adiadas até o momento responsável.** Não se escolhe banco, fila ou framework antes de saber se precisa.
 - **Combina com IA.** Tarefas pequenas, com critério de pronto verificável, cabem numa sessão curta.
+- **Nada prende você.** Teste é opcional em todos os níveis (`TEST_LEVEL`, `tests: none`), o checklist é só conferência, e os hooks e travas têm chave para desligar.
 - **Funciona em várias ferramentas e para qualquer tipo de projeto.** Um único conjunto de regras, sem prender você a um agente ou a uma stack.
 
 ## Desvantagens e riscos

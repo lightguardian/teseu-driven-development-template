@@ -1,6 +1,6 @@
 # acceptance/
 
-The only black-box tests of the method.
+The only black-box tests of the method, which means end-to-end tests through the product's public edge, written with whatever tool you prefer. All of this is optional: `TEST_LEVEL` in `.harness.env` sets how much testing the project asks for (`none`, `unit`, `core` by default, or `full`).
 
 - `core/`: the pilot's test, the contract with the user. It is revisited on every demand ("does this still make sense?") and changes only on purpose: when the product's promise itself changes. A commit that modifies or deletes it needs a `Core-Change:` footer.
 - `features/NNNN-slug/`: one black-box test per `feature` spec, for demands that add a capability. They may become obsolete; changing or retiring one needs an `Acceptance-Change:` footer.

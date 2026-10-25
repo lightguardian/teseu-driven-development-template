@@ -22,10 +22,25 @@ cd "$here/.."
 group="${1:-all}"
 spec="${2:-}"
 
+level="$(env_get TEST_LEVEL core)"
+case "$level" in
+  none)
+    echo "test: TEST_LEVEL=none, there are no tests to run"
+    exit 0
+    ;;
+  unit|core|full) ;;
+  *)
+    echo "test: unknown TEST_LEVEL '$level' in .harness.env (none, unit, core, full)" >&2
+    exit 2
+    ;;
+esac
+
 run_group() { # run_group <name> <key> <required: 0|1>
   local name="$1" key="$2" required="$3" cmd
   cmd="$(env_get "$key" "")"
   if [ -z "$cmd" ]; then
+    if [ "$key" = "TEST_CORE_CMD" ] && [ "$level" = "unit" ]; then required=0; fi
+    if [ "$key" = "TEST_FEATURE_CMD" ] && [ "$level" != "full" ]; then required=0; fi
     if [ "$required" = "1" ]; then
       if [ "$key" = "TEST_CORE_CMD" ]; then
         echo "test: $key is empty in .harness.env. Run /start to create the first acceptance test." >&2

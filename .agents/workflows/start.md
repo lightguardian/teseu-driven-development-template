@@ -11,13 +11,13 @@ Goal: a usable product that does ONE thing, already in the user's hands, built f
 ## 1. Prepare (silently)
 
 - Run `scripts/setup.sh` (git hooks). Read `.harness.env`; make sure `NATIVE_LANGUAGE` is set.
-- If `acceptance/core/` already has tests, the pilot exists: stop and suggest `spec` or `planks`.
+- If `PILOT.md` says `Status: started`, the pilot exists: stop and suggest `spec` or `planks`.
 
 ## 2. Interview (one question at a time, at most 5, skip what was already said)
 
 1. **What do you want to do?** Ask for ONE function: the smallest thing that would already be useful. If the idea has many parts, ask which one hurts most and write the rest under "Parked" in `PLANKS.md`.
 2. **Who feels the pain and what happens today without it?** One sentence is enough.
-3. **How will we know it worked, and what must never happen?** Ask for the observable final result: what exists or arrives, where and in what format (a message in an inbox with this subject, a file with these columns, a JSON response, a line in a report, a game state). Then ask for the worst wrong outcome (it goes to the wrong person, a duplicate, bad input accepted, data lost). The first becomes the positive test, the second the negative test.
+3. **How will we know it worked, and what must never happen?** Ask for the observable final result: what exists or arrives, where and in what format (a message in an inbox with this subject, a file with these columns, a JSON response, a line in a report, a game state). Then ask for the worst wrong outcome (it goes to the wrong person, a duplicate, bad input accepted, data lost). The first becomes the positive test, the second the negative test. If the user says the product cannot or need not be tested, set `TEST_LEVEL=none` (or `unit` when only the language's own tests make sense), tell them they can change it later, and skip the test parts of steps 5 to 7.
 4. **Does anything need to be robust from day 0?** Real database, authentication, payments, other people's data, messages to third parties. If yes, that plank starts at L2 or L3 and you must say which real data the pilot will touch (see "Real-world risk" in `AGENTS.md`).
 5. **Do you already have an architecture or a stack in mind, and do you prefer unit or end-to-end tests for the next specs?** Both are optional. Default stack: the one already in the repository, otherwise the one the user knows best; if there is nothing to base a choice on, propose one and ask for a yes. Default test style: `unit` (`SPEC_TEST_STYLE`; the other values are `e2e` and `mixed`). Only the core test is black-box; the specs' tests follow the language's usual style.
 
@@ -36,9 +36,11 @@ Write the confirmed table in the "Project layers" section of `docs/architecture.
 
 ## 4. Write `PILOT.md`
 
-Fill the template with the answers: pain, who, the single function, "done when" (the observable result), "must never happen", the edge the tests will use, the stack, the robust-from-day-0 items, the appetite (how long or how many tokens this pilot is worth). Half a page.
+Set `Status: started` and fill the template with the answers: pain, who, the single function, "done when" (the observable result), "must never happen", the edge the tests will use, the stack, the robust-from-day-0 items, the appetite (how long or how many tokens this pilot is worth). Half a page.
 
 ## 5. RED: the tests come first
+
+Tests are optional (see `TEST_LEVEL` in `AGENTS.md`). At `none`, skip this step and the evidence calls of steps 5 to 7 that need tests: build the pilot, review it, refactor it. At `unit`, the pilot's tests are the language's own tests and `TEST_CORE_CMD` points to them. At `core` and `full` (the default is `core`), write the black-box core test as follows.
 
 - Create in `acceptance/core/`: a positive black-box test (`A01`) for the observable result and at least one negative test (`A02`, with `NEG` in its name) for what must never happen. They talk to the product only through its edge and never import product code.
 - Fill `RUN_CMD` and `TEST_CORE_CMD` in `.harness.env` (and `LAYERS_DIR` if the stack needs another folder). Also set up, for the stack's usual test runner, the tests of the specs that will come: `SPEC_TESTS_DIR`, `TEST_SPECS_CMD` (all the spec tests), `TEST_SPEC_CMD` (one spec, with `{spec}` in it, like `pytest tests -q -k {spec}`), `TEST_FEATURES_CMD` and `TEST_FEATURE_CMD` (the same pair for the black-box tests in `acceptance/features/`) and `SPEC_TEST_STYLE` from the answer.

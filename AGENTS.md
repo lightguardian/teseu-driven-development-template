@@ -8,7 +8,7 @@ This repository follows **Teseu-DD** (Teseu-Driven Development): ship a small, d
 
 1. Read `.harness.env`. If `NATIVE_LANGUAGE` is empty, ask the user what it is and save it there.
 2. If `git config core.hooksPath` is not `.githooks`, run `scripts/setup.sh`.
-3. If `TEST_CORE_CMD` is empty, the pilot does not exist yet: offer `/start`.
+3. If `PILOT.md` still says `Status: not started`, the pilot does not exist yet: offer `/start`.
 4. Never read or print `.env` (it holds secrets). `.env.example` is fine.
 
 ## Commands
@@ -32,6 +32,19 @@ If the user asks for new functionality in plain words, do not start coding: run 
 
 Scripts: `scripts/test.sh` (run a group of tests), `scripts/evidence.sh` (run a TDD phase and record the proof), `scripts/arch-check.sh` (layer rules), `scripts/changelog.sh` (history), `scripts/backlog.sh` (score and sort the backlog), `scripts/setup.sh` (git hooks), `scripts/sync-shells.sh` (regenerate the per-tool command files).
 
+## Tests are optional
+
+The method asks for tests only as far as the user chose. `TEST_LEVEL` in `.harness.env`:
+
+| Level | What it means |
+|---|---|
+| `none` | No tests at all. Nothing is run or required and there is no red; the cycle is build, review, refactor. Some things cannot be tested. |
+| `unit` | Only the language's own tests. No black-box tests anywhere. |
+| `core` (default) | A black-box core test for the pilot, and the language's own tests for the specs. |
+| `full` | Also one black-box test for every `feature` spec. |
+
+A single demand can opt out with `tests: none` in its spec (say why). "Black-box" means end-to-end through the product's public edge, with whatever tool the user prefers. The rules below that mention tests apply at the level the user chose: never add a test layer the level does not ask for, and never push the user toward a higher level.
+
 ## The method in seven rules
 
 1. **Black-box tests are the contract.** `acceptance/core/` holds the pilot's test, the contract with the user, and `acceptance/features/NNNN-slug/` holds one black-box test per `feature` spec. Black-box tests check what the product delivers, talk to it only through its public edge (command line, HTTP, files, a test sink...) and never import product code. They exist only for demands that add a capability, never for a refactor, a chore or a bug fix. **The core test is revisited on every demand: does it still make sense?** If the product's promise really changed (the message no longer carries an image, so the test that expects one is wrong), update the core test first, with the user's confirmation, and set `core_change: true` in the spec. Never edit, delete or weaken a core test just to make a change pass. Commits that change the core test need a `Core-Change: <reason>` footer; commits that change or retire a feature test need an `Acceptance-Change: <reason>` footer (feature tests may become obsolete, but never silently). Git hooks enforce both. All the other tests are the language's usual ones (see rule 6).
@@ -43,7 +56,7 @@ Scripts: `scripts/test.sh` (run a group of tests), `scripts/evidence.sh` (run a 
    The port is the one-way door: think about it. The adapter is the two-way door: it may be as dumb as you like.
 3. **Know the layers of this project.** The code layers above are only part of the picture. `docs/architecture.md` has a **layer map** for this project: code, external services (each one is an adapter behind a port), data, interfaces (including the project's own API), tests and infrastructure. `/start` writes it, every swappable layer becomes a plank in `PLANKS.md`, and any spec that needs a layer not on the map updates the map first.
 4. **The pilot is frozen legacy.** After `/start`, touch the pilot's adapters only for critical bugs, always with a test. New behavior goes into new modules or adapters behind a port. If a patch to a plank is growing, stop and propose `/swap` instead of patching.
-5. **Red, green, review, refactor.** Every unit of work (the pilot, a spec, a swap) follows the TDD cycle in this order: (1) write the tests and watch them fail for the right reason (red); (2) write the least code that makes them pass (green); (3) review, by the built-in read-only `reviewer` or by the user's own reviewer, according to `REVIEW_MODE`; (4) refactor with the tests staying green. Then the cycle starts again. Record each phase with `scripts/evidence.sh <red|green|review|refactor> <core|NNNN|swap>`: it runs the tests, checks that the result is the expected one, and appends the proof to the `## Evidence` section of `PILOT.md`, of the spec, or of `PLANKS.md`. Do not write product code before a red is recorded. Do not refactor before the review (unless `REVIEW_MODE=off`). Verification has **two stages, always in this order**: first the black-box tests (the core test on top, then the feature's own, then the other features'), then the tests of the language (the spec's, the other specs', the contracts, the architecture rules). If stage 1 fails, stage 2 is not run. A spec must pass both, and neither stage replaces the other. Every run of `scripts/evidence.sh` regenerates a **checklist** (`PILOT.checklist.md`, `specs/NNNN-slug.checklist.md`) that lists the tests of each stage with a box, the central black-box tests first. Never edit it by hand. The review, the commit of the green and the shipping wait until every box is checked.
+5. **Red, green, review, refactor.** Every unit of work (the pilot, a spec, a swap) follows the TDD cycle in this order: (1) write the tests and watch them fail for the right reason (red); (2) write the least code that makes them pass (green); (3) review, by the built-in read-only `reviewer` or by the user's own reviewer, according to `REVIEW_MODE`; (4) refactor with the tests staying green. Then the cycle starts again. Record each phase with `scripts/evidence.sh <red|green|review|refactor> <core|NNNN|swap>`: it runs the tests, checks that the result is the expected one, and appends the proof to the `## Evidence` section of `PILOT.md`, of the spec, or of `PLANKS.md`. Do not write product code before a red is recorded. Do not refactor before the review (unless `REVIEW_MODE=off`). Verification has **two stages, always in this order**: first the black-box tests (the core test on top, then the feature's own, then the other features'), then the tests of the language (the spec's, the other specs', the contracts, the architecture rules). If stage 1 fails, stage 2 is not run. A spec must pass both, and neither stage replaces the other. Every run of `scripts/evidence.sh` regenerates a **checklist** (`PILOT.checklist.md`, `specs/NNNN-slug.checklist.md`) that lists the tests of each stage with a box, the central black-box tests first. Never edit it by hand. The checklist is for conference only: proceed to the review when every box is checked and tell the user if one is open. The user may edit it, and nothing is locked by it.
 6. **Every spec has a kind, and the kind decides its tests.** Set `kind` in the spec:
    - `feature` (a new capability): exactly one black-box test in `acceptance/features/NNNN-slug/` (the main positive path and the main negative one) plus tests in the language's usual style under `SPEC_TESTS_DIR` for the details, with at least one negative test overall.
    - `fix` (a bug): a regression test in the language's style that fails first. A black-box test only if the bug broke what the core promises.

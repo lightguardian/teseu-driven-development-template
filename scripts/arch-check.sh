@@ -53,7 +53,8 @@ check "$layers/adapters" "adapters must not depend on app" "app"
 layers_re="$(printf '%s' "$layers" | sed 's#[][\\.*^$/+?(){}|]#\\&#g')"
 check "acceptance" "acceptance tests must not import product code" "$layers_re"
 
-if [ -z "$(find acceptance/core -type f ! -name README.md 2>/dev/null | head -n1)" ]; then
+level="$(env_get TEST_LEVEL core)"
+if { [ "$level" = "core" ] || [ "$level" = "full" ]; } && [ -z "$(find acceptance/core -type f ! -name README.md 2>/dev/null | head -n1)" ]; then
   echo "arch: warning: acceptance/core has no tests yet (run /start)"
 fi
 

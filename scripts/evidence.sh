@@ -6,27 +6,33 @@
 # section of PILOT.md (core), of specs/NNNN-*.md (a spec) or of PLANKS.md (swap).
 # Nothing is recorded when the expectation is not met.
 #
-# Verification has TWO STAGES, always in this order:
-#   stage 1  black-box, the central tests: the core test, then the feature's own black-box
-#            test, then every other feature's. If stage 1 fails, stage 2 is not run.
-#   stage 2  the language's own tests: the spec's tests, the other specs', the contracts,
-#            then the architecture rules.
-# The checklist (PILOT.checklist.md or specs/NNNN-*.checklist.md) lists the tests of each
-# stage and is regenerated on every run. Review waits until every box is checked.
+# Tests are optional. TEST_LEVEL in .harness.env says how much the method asks for:
+#   none   no tests at all: nothing is run or required, there is no red
+#   unit   only the language's own tests
+#   core   (default) a black-box core test for the pilot, and the language's own tests
+#   full   also one black-box test for every feature spec
+# A spec can opt out on its own with "tests: none" in its frontmatter.
 #
-#   red       the new tests FAIL, in BOTH stages (and the core still passes); needs a note:
-#             why it fails. Which tests are required depends on the spec's kind (frontmatter):
-#               feature   a black-box test under acceptance/features/ AND tests in the
-#                         language's style under SPEC_TESTS_DIR, both naming the spec id
-#                         (S0001_R1_...), and at least one negative test (NEG)
+# When there are tests, verification has TWO STAGES, always in this order:
+#   stage 1  black-box (end-to-end through the public edge): the core test, then the
+#            feature's own test, then every other feature's. If it fails, stage 2 is not run.
+#   stage 2  the language's own tests: the spec's, the other specs', the contracts, then
+#            the architecture rules.
+# The checklist (PILOT.checklist.md or specs/NNNN-*.checklist.md) lists the tests of each
+# stage. It is for conference only: nothing is locked by it and anyone may edit it.
+#
+#   red       the new tests FAIL, in BOTH stages; needs a note: why it fails. What is
+#             required depends on the spec's kind (frontmatter):
+#               feature   tests in the language's style naming the spec id (S0001_R1_...)
+#                         and at least one negative test (NEG); at TEST_LEVEL=full also a
+#                         black-box test under acceptance/features/
 #               fix       a regression test naming the spec id, in either place
-#               refactor, chore   no red: no new behavior is tested. Start with green.
+#               refactor, chore, or tests: none   no red: start with green (the baseline)
 #             core_change: true in the frontmatter says the demand changes what the pilot
 #             promises: the core test is updated first, so it may fail in the red.
-#   green     both stages pass. For a refactor or chore, the first green is the baseline,
-#             recorded before touching anything.
-#   review    no tests run. Needs a note: verdict and what was accepted or rejected, and a
-#             complete checklist.
+#   green     the tests pass. For a demand without tests, the first green is the baseline.
+#   review    no tests run. Needs a note: verdict and what was accepted or rejected. An
+#             incomplete checklist only produces a warning, recorded in the evidence.
 #   refactor  same checks as green: proves the refactor changed no behavior.
 #
 # The order is enforced: red, green, review, refactor, then a new red.
@@ -52,6 +58,15 @@ note="${3:-}"
 
 case "$phase" in red|green|review|refactor) ;; *) usage ;; esac
 
+level="$(env_get TEST_LEVEL core)"
+case "$level" in
+  none|unit|core|full) ;;
+  *)
+    echo "evidence: unknown TEST_LEVEL '$level' in .harness.env (none, unit, core, full)" >&2
+    exit 2
+    ;;
+esac
+
 checklist=""
 case "$target" in
   core) doc="PILOT.md"; tests_dir="acceptance/core"; label="pilot"; checklist="PILOT.checklist.md" ;;
@@ -69,6 +84,7 @@ if [ ! -f "$doc" ]; then
   echo "evidence: $doc not found" >&2
   exit 2
 fi
+if [ "$level" = "none" ]; then checklist=""; fi
 
 # fm_key <key>: value of a key in the frontmatter of $doc (comments after # are dropped)
 fm_key() {
@@ -86,23 +102,36 @@ fm_key() {
 
 kind=""
 core_change="false"
+spec_tests="auto"
 no_red=0
+why_no_red=""
 if [ "$target" != "core" ] && [ "$target" != "swap" ]; then
   kind="$(fm_key kind)"
   kind="${kind:-feature}"
   core_change="$(fm_key core_change)"
   core_change="${core_change:-false}"
+  spec_tests="$(fm_key tests)"
+  spec_tests="${spec_tests:-auto}"
   case "$kind" in
     feature|fix) ;;
-    refactor|chore) no_red=1 ;;
+    refactor|chore) no_red=1; why_no_red="a $kind has no red: no new behavior is tested" ;;
     *)
       echo "evidence: unknown kind '$kind' in $doc (feature, fix, refactor, chore)" >&2
       exit 2
       ;;
   esac
+  case "$spec_tests" in
+    auto) ;;
+    none) no_red=1; why_no_red="this spec says tests: none" ;;
+    *)
+      echo "evidence: unknown tests '$spec_tests' in $doc (auto, none)" >&2
+      exit 2
+      ;;
+  esac
 fi
+if [ "$level" = "none" ]; then no_red=1; why_no_red="TEST_LEVEL=none: there are no tests, so nothing to fail"; fi
 if [ "$phase" = "red" ] && [ "$no_red" = "1" ]; then
-  echo "evidence: a $kind has no red: no new behavior is tested. Run green first (the baseline), then review and refactor." >&2
+  echo "evidence: $why_no_red. Run green first (the baseline), then review and refactor." >&2
   exit 1
 fi
 
@@ -219,10 +248,11 @@ fail_red() { # fail_red <which tests passed>
   exit 1
 }
 
-# --- the checklist -------------------------------------------------------------------
-# States: pass, fail, expectedfail (a red), notrun, na (does not apply)
-R_core=notrun; R_feat_one=na; R_feat_all=na
+# --- the checklist (for conference only) ---------------------------------------------
+# States: pass, fail, expectedfail (a red), notrun, na (does not apply or is not configured)
+R_core=na; R_feat_one=na; R_feat_all=na
 R_spec_one=na; R_spec_all=na; R_contracts=na; R_arch=notrun
+if have TEST_CORE_CMD; then R_core=notrun; fi
 
 box() { case "$1" in pass) printf '[x]' ;; *) printf '[ ]' ;; esac; }
 word() {
@@ -249,27 +279,27 @@ stage_ok() { # stage_ok <state>...: true when every state is pass or na
 
 write_checklist() {
   [ -n "$checklist" ] || return 0
-  local core_ids feat_ids spec_ids s1 s2 result
-  core_ids="$(find_ids 'A[0-9]{2}[A-Za-z0-9_]*' acceptance/core | fmt_ids)"
+  local core_ids feat_ids spec_ids s1 s2 result title="$label"
+  if [ -n "$kind" ]; then title="spec $(basename "$doc" .md)"; fi
+  core_ids="$(find_ids 'A[0-9]{2}[A-Za-z0-9_]*' acceptance/core "$tests_dir" | fmt_ids)"
   feat_ids=""; spec_ids=""
   if [ -n "$kind" ]; then
+    core_ids="$(find_ids 'A[0-9]{2}[A-Za-z0-9_]*' acceptance/core | fmt_ids)"
     feat_ids="$(find_ids "S$target[_-]R[0-9]+[A-Za-z0-9_]*" acceptance/features | fmt_ids)"
     spec_ids="$(find_ids "S$target[_-]R[0-9]+[A-Za-z0-9_]*" "$tests_dir" | fmt_ids)"
   fi
   if stage_ok "$R_core" "$R_feat_one" "$R_feat_all"; then s1="passed"; else s1="not complete"; fi
   if stage_ok "$R_spec_one" "$R_spec_all" "$R_contracts" "$R_arch"; then s2="passed"; else s2="not complete"; fi
   if [ "$s1" = "passed" ] && [ "$s2" = "passed" ]; then result="complete"; else result="incomplete"; fi
-  local title="$label"
-  if [ -n "$kind" ]; then title="spec $(basename "$doc" .md)"; fi
   {
     printf '# Checklist: %s\n\n' "$title"
-    printf 'Generated by `scripts/evidence.sh`. Do not edit by hand. Last run: %s, phase %s.\n\n' "$(date '+%Y-%m-%d %H:%M')" "$phase"
-    printf 'Verification has two stages, always in this order: first the black-box tests (the central ones), then the tests of the language. Review, commit and ship wait until every box is checked.\n\n'
+    printf 'Generated by `scripts/evidence.sh` for conference only: nothing is locked by it and you may edit it. Last run: phase %s.\n\n' "$phase"
+    printf 'Verification has two stages, always in this order: first the black-box tests (the central ones), then the tests of the language. The agent proceeds to the review when every box is checked, and tells you if one is open.\n\n'
     printf '## Stage 1: black-box (the central tests)\n\n'
-    item "$R_core" "Core test (acceptance/core)" "$core_ids"
+    if [ "$R_core" = "na" ]; then item na "core test (TEST_CORE_CMD is empty)"; else item "$R_core" "Core test (acceptance/core)" "$core_ids"; fi
     if [ -n "$kind" ]; then
       if [ "$R_feat_one" = "na" ]; then
-        item na "no black-box test for this spec (kind: $kind)"
+        item na "no black-box test for this spec"
       else
         item "$R_feat_one" "This feature (acceptance/features)" "$feat_ids"
       fi
@@ -277,7 +307,7 @@ write_checklist() {
     fi
     printf '\n## Stage 2: the language'"'"'s own tests\n\n'
     if [ -n "$kind" ]; then
-      if [ "$R_spec_one" = "na" ]; then item na "no tests of its own (kind: $kind)"; else item "$R_spec_one" "This spec ($tests_dir)" "$spec_ids"; fi
+      if [ "$R_spec_one" = "na" ]; then item na "no tests of its own (kind: $kind, tests: $spec_tests)"; else item "$R_spec_one" "This spec ($tests_dir)" "$spec_ids"; fi
       if [ "$R_spec_all" = "na" ]; then item na "all the specs (TEST_SPECS_CMD is empty)"; else item "$R_spec_all" "All the specs"; fi
       if [ "$R_contracts" = "na" ]; then item na "contracts (TEST_CONTRACTS_CMD is empty)"; else item "$R_contracts" "Contracts"; fi
     fi
@@ -294,12 +324,15 @@ record() {
     printf '\n### %s | %s | %s\n\n' "$phase" "$(date '+%Y-%m-%d %H:%M')" "$label"
     printf -- '- result: %s\n' "$1"
     if [ -n "$kind" ]; then printf -- '- kind: %s\n' "$kind"; fi
-    if [ "$baseline" = "1" ]; then printf -- '- baseline: everything passed before the change\n'; fi
+    if [ "$level" = "none" ]; then printf -- '- tests: none (TEST_LEVEL=none)\n'; fi
+    if [ "$level" != "none" ] && [ "$spec_tests" = "none" ]; then printf -- '- tests: none (this spec opted out)\n'; fi
+    if [ "$baseline" = "1" ]; then printf -- '- baseline: everything that exists passed before the change\n'; fi
     if [ -n "$neg" ]; then printf -- '- negative tests found: %s\n' "$neg"; fi
     if [ "$phase" = "red" ] && [ "$core_change" = "true" ]; then printf -- '- core test updated for this spec (core_change: true)\n'; fi
     if [ "$phase" = "review" ]; then printf -- '- review mode: %s\n' "$review_mode"; fi
+    if [ "$phase" = "review" ] && [ -n "${checklist_warning:-}" ]; then printf -- '- checklist: %s\n' "$checklist_warning"; fi
     if [ "$phase" = "refactor" ] && [ "$review_mode" = "off" ]; then printf -- '- review: skipped (REVIEW_MODE=off)\n'; fi
-    if [ -n "$checklist" ]; then printf -- '- checklist: %s\n' "$checklist"; fi
+    if [ -n "$checklist" ] && [ "$phase" != "review" ]; then printf -- '- checklist: %s\n' "$checklist"; fi
     if [ -n "$note" ]; then printf -- '- note: %s\n' "$note"; fi
     if [ -s "$log" ]; then
       printf '\n```text\n'
@@ -312,7 +345,7 @@ record() {
 
 # items that this run is going to check start as "not run" (a failed stage 1 leaves stage 2 so)
 if [ -n "$kind" ]; then
-  [ "$no_red" != "1" ] && [ "$(count_files "S$target" acceptance/features)" -ge 1 ] && R_feat_one=notrun
+  [ "$no_red" != "1" ] && [ "$(count_files "S$target" acceptance/features)" -ge 1 ] && have TEST_FEATURE_CMD && R_feat_one=notrun
   [ "$no_red" != "1" ] && [ "$(count_files "S$target" "$tests_dir")" -ge 1 ] && R_spec_one=notrun
   have TEST_FEATURES_CMD && R_feat_all=notrun
   have TEST_SPECS_CMD && R_spec_all=notrun
@@ -326,9 +359,15 @@ case "$phase" in
       echo "evidence: review needs a note (verdict and what was accepted or rejected)" >&2
       exit 64
     fi
+    checklist_warning=""
     if [ -n "$checklist" ]; then
-      if [ ! -f "$checklist" ] || ! grep -q '^Result: complete' "$checklist" || grep -q '^- \[ \]' "$checklist"; then
-        die "the checklist ($checklist) is not complete. Review, commit and ship wait until every box is checked: run scripts/evidence.sh green $target."
+      if [ ! -f "$checklist" ]; then
+        checklist_warning="there was no checklist when the review was recorded"
+      elif ! grep -q '^Result: complete' "$checklist" || grep -q '^- \[ \]' "$checklist"; then
+        checklist_warning="incomplete when the review was recorded ($checklist)"
+      fi
+      if [ -n "$checklist_warning" ]; then
+        echo "evidence: warning: the checklist is $checklist_warning. Recording the review anyway; the checklist is for conference only." >&2
       fi
     fi
     record "review recorded"
@@ -341,8 +380,8 @@ case "$phase" in
     fi
     case "$target" in
       core)
-        neg="$(count_files 'NEG' "$tests_dir")"
-        [ "$neg" -ge 1 ] || die "no negative test found in $tests_dir. Put NEG in the name of at least one test."
+        neg=$(( $(count_files 'NEG' "$tests_dir") + $(count_files 'NEG' "$(env_get SPEC_TESTS_DIR tests)") ))
+        [ "$neg" -ge 1 ] || die "no negative test found for the pilot. Put NEG in the name of at least one test."
         need TEST_CORE_CMD
         if stage R_core core scripts/test.sh core; then fail_red "core tests"; fi
         R_core=expectedfail
@@ -360,27 +399,34 @@ case "$phase" in
         n_lang="$(count_files "$sid" "$tests_dir")"
         neg=$(( $(count_files "$sid.*NEG|NEG.*$sid" "$bb_dir") + $(count_files "$sid.*NEG|NEG.*$sid" "$tests_dir") ))
         if [ "$kind" = "feature" ]; then
-          [ "$n_bb" -ge 1 ] || die "a feature needs a black-box test: no file under $bb_dir mentions $sid (put it in $bb_dir/$target-<slug>/)."
-          [ "$n_lang" -ge 1 ] || die "a feature also needs tests in the language's style: no file under $tests_dir mentions $sid."
+          if [ "$level" = "full" ]; then
+            [ "$n_bb" -ge 1 ] || die "TEST_LEVEL=full: a feature needs a black-box test, but no file under $bb_dir mentions $sid (put it in $bb_dir/$target-<slug>/)."
+          fi
+          [ "$n_lang" -ge 1 ] || die "a feature needs tests in the language's style: no file under $tests_dir mentions $sid. (To skip tests for this demand, set tests: none in the spec.)"
           [ "$neg" -ge 1 ] || die "no negative test found for $sid. Put NEG in the name of at least one test."
         else
-          [ $((n_bb + n_lang)) -ge 1 ] || die "a fix needs a regression test that mentions $sid (under $tests_dir or $bb_dir)."
+          [ $((n_bb + n_lang)) -ge 1 ] || die "a fix needs a regression test that mentions $sid (under $tests_dir or $bb_dir). (To skip tests for this demand, set tests: none in the spec.)"
         fi
-        need TEST_CORE_CMD
-        # stage 1: the core must pass (unless this spec changes it), the feature's black-box test must fail
-        if [ "$core_change" = "true" ]; then
-          stage R_core core scripts/test.sh core   # expected to fail: its test was just updated
-          [ "$R_core" = "fail" ] && R_core=expectedfail
-        elif ! stage R_core core scripts/test.sh core; then
-          write_checklist
-          echo "evidence: the core tests are already failing. Fix that before starting a spec (or set core_change: true if this spec changes what the pilot promises)." >&2
-          show_log >&2
-          exit 1
+        # stage 1: the core must pass (unless this spec changes it); the feature's black-box test must fail
+        if have TEST_CORE_CMD; then
+          if [ "$core_change" = "true" ]; then
+            stage R_core core scripts/test.sh core   # expected to fail: its test was just updated
+            [ "$R_core" = "fail" ] && R_core=expectedfail
+          elif ! stage R_core core scripts/test.sh core; then
+            write_checklist
+            echo "evidence: the core tests are already failing. Fix that before starting a spec (or set core_change: true if this spec changes what the pilot promises)." >&2
+            show_log >&2
+            exit 1
+          fi
+        elif [ "$level" = "core" ] || [ "$level" = "full" ]; then
+          need TEST_CORE_CMD
         fi
         bad=""
         if [ "$n_bb" -ge 1 ]; then
-          need TEST_FEATURE_CMD
-          if stage R_feat_one "feature $target" scripts/test.sh features "$target"; then bad="black-box tests"; else R_feat_one=expectedfail; fi
+          if [ "$level" = "full" ]; then need TEST_FEATURE_CMD; fi
+          if have TEST_FEATURE_CMD; then
+            if stage R_feat_one "feature $target" scripts/test.sh features "$target"; then bad="black-box tests"; else R_feat_one=expectedfail; fi
+          fi
         fi
         # stage 2: the language tests must fail too
         if [ "$n_lang" -ge 1 ]; then
@@ -396,42 +442,46 @@ case "$phase" in
 
   green|refactor)
     failed=0
-    case "$target" in
-      core)
-        stage R_core core scripts/test.sh core || failed=1
-        if [ "$failed" = "0" ]; then stage R_arch architecture scripts/arch-check.sh || failed=1; fi
-        ;;
-      swap)
-        step all scripts/test.sh all || failed=1
-        step architecture scripts/arch-check.sh || failed=1
-        ;;
-      *)
-        sid="S$target"
-        bb_dir="acceptance/features"
-        need TEST_CORE_CMD
-        # stage 1: black-box, the central tests (the core first)
-        stage R_core core scripts/test.sh core || failed=1
-        if [ "$no_red" != "1" ] && [ "$(count_files "$sid" "$bb_dir")" -ge 1 ]; then
-          need TEST_FEATURE_CMD
-          stage R_feat_one "feature $target" scripts/test.sh features "$target" || failed=1
-        fi
-        if have TEST_FEATURES_CMD; then
-          stage R_feat_all "all features" scripts/test.sh features || failed=1
-        fi
-        # stage 2: the language's own tests, only when stage 1 passed
-        if [ "$failed" = "0" ]; then
-          if [ "$no_red" != "1" ] && [ "$(count_files "$sid" "$tests_dir")" -ge 1 ]; then
-            need TEST_SPEC_CMD
-            stage R_spec_one "spec $target" scripts/test.sh specs "$target" || failed=1
+    if [ "$level" = "none" ]; then
+      step architecture scripts/arch-check.sh || failed=1
+      summary="no tests (TEST_LEVEL=none), ${summary}"
+    else
+      case "$target" in
+        core)
+          if [ "$level" = "core" ] || [ "$level" = "full" ]; then need TEST_CORE_CMD; fi
+          if have TEST_CORE_CMD; then stage R_core core scripts/test.sh core || failed=1; fi
+          if [ "$failed" = "0" ]; then stage R_arch architecture scripts/arch-check.sh || failed=1; fi
+          ;;
+        swap)
+          step all scripts/test.sh all || failed=1
+          step architecture scripts/arch-check.sh || failed=1
+          ;;
+        *)
+          sid="S$target"
+          bb_dir="acceptance/features"
+          if [ "$level" = "core" ] || [ "$level" = "full" ]; then need TEST_CORE_CMD; fi
+          # stage 1: black-box, the central tests (the core first)
+          if have TEST_CORE_CMD; then stage R_core core scripts/test.sh core || failed=1; fi
+          if [ "$no_red" != "1" ] && [ "$(count_files "$sid" "$bb_dir")" -ge 1 ]; then
+            if [ "$level" = "full" ]; then need TEST_FEATURE_CMD; fi
+            if have TEST_FEATURE_CMD; then stage R_feat_one "feature $target" scripts/test.sh features "$target" || failed=1; fi
           fi
-          if have TEST_SPECS_CMD; then stage R_spec_all "all specs" scripts/test.sh specs || failed=1; fi
-          if have TEST_CONTRACTS_CMD; then stage R_contracts contracts scripts/test.sh contracts || failed=1; fi
-          stage R_arch architecture scripts/arch-check.sh || failed=1
-        else
-          summary="${summary}, stage 2: not run"
-        fi
-        ;;
-    esac
+          if have TEST_FEATURES_CMD; then stage R_feat_all "all features" scripts/test.sh features || failed=1; fi
+          # stage 2: the language's own tests, only when stage 1 passed
+          if [ "$failed" = "0" ]; then
+            if [ "$no_red" != "1" ] && [ "$(count_files "$sid" "$tests_dir")" -ge 1 ]; then
+              need TEST_SPEC_CMD
+              stage R_spec_one "spec $target" scripts/test.sh specs "$target" || failed=1
+            fi
+            if have TEST_SPECS_CMD; then stage R_spec_all "all specs" scripts/test.sh specs || failed=1; fi
+            if have TEST_CONTRACTS_CMD; then stage R_contracts contracts scripts/test.sh contracts || failed=1; fi
+            stage R_arch architecture scripts/arch-check.sh || failed=1
+          else
+            summary="${summary}, stage 2: not run"
+          fi
+          ;;
+      esac
+    fi
     write_checklist
     if [ "$failed" = "1" ]; then
       echo "evidence: not recorded, something is failing: $summary" >&2

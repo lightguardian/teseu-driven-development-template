@@ -4,6 +4,7 @@ kind: feature   # feature | fix | refactor | chore
 status: draft   # draft | in-progress | done
 size: S         # S fits one session | M becomes a few tasks | L split it before implementing
 core_change: false   # true when this demand changes what the pilot promises (the core test)
+tests: auto     # auto | none (this demand cannot or need not be tested; say why under ## Tests)
 planks: []      # planks this spec touches; the first is the central point, more than two means split it
 ---
 

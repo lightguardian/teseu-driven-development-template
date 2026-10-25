@@ -1,5 +1,7 @@
 # Pilot
 
+Status: not started   <!-- /start changes it to: started -->
+
 > Half a page, filled by `/start`. Write in the team's native language (`NATIVE_LANGUAGE`).
 > The pilot does ONE thing. Everything else goes to "Parked" in `PLANKS.md`.
 
