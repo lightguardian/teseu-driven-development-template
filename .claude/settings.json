@@ -8,6 +8,19 @@
       "Read(./.env)",
       "Read(./.env.local)",
       "Read(./.env.production)",
+      "Read(./.env.development)",
+      "Read(./.env.staging)",
+      "Read(./.env.test)",
+      "Read(./.env.*.local)",
+      "Read(**/.env)",
+      "Edit(./.env)",
+      "Edit(./.env.local)",
+      "Edit(./.env.production)",
+      "Edit(./.env.development)",
+      "Edit(./.env.staging)",
+      "Edit(./.env.test)",
+      "Edit(./.env.*.local)",
+      "Edit(**/.env)",
       "Bash(git commit --no-verify:*)",
       "Bash(git commit -n:*)",
       "Bash(git push --no-verify:*)",
@@ -15,7 +28,24 @@
       "Bash(git push -f:*)",
       "Edit(./.githooks/**)",
       "Edit(./scripts/review-window.sh)",
-      "Edit(./scripts/lib/**)"
+      "Edit(./scripts/lib/**)",
+      "Edit(./.claude/settings.json)",
+      "Edit(./.claude/hooks/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-env.py\"",
+            "onFailure": "block",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
