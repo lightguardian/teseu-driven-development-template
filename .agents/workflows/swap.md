@@ -47,4 +47,4 @@ Remove the old adapter and the temporary switch. Keep an in-memory adapter only 
 
 ## Whole-product rewrite in another language
 
-Keep `acceptance/` untouched. Build the new implementation in a sibling folder, point `RUN_CMD` at it, and use the acceptance suite as the definition of done. Switch only when core and spec tests pass against it; then remove the old one.
+Keep `acceptance/` untouched: `acceptance/core/` and `acceptance/features/` are the only tests that do not depend on the language, so together they are the definition of done. Build the new implementation in a sibling folder and point `RUN_CMD` at it. Rewrite the language-style tests of the specs (`SPEC_TESTS_DIR`) and the contracts for the new language as you go. Be aware that a bug fix or a detail covered only by an old language-style test has no black-box safety net: list those and decide with the user which ones deserve a new black-box test before switching. Switch only when every black-box test passes against the new implementation; then remove the old one.

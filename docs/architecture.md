@@ -25,7 +25,7 @@ flowchart LR
   App --> Adapters["adapters/<br/>implementations"]
   Adapters --> Ports["ports/<br/>interfaces and plain types"]
   Core --> Ports
-  Tests["acceptance/core/<br/>black-box tests"] -. "only through the public edge" .-> App
+  Tests["acceptance/<br/>black-box tests"] -. "only through the public edge" .-> App
 ```
 
 Dependency rule: arrows only point toward `ports/`, which depend on nothing.
@@ -42,8 +42,9 @@ Dependency rule: arrows only point toward `ports/`, which depend on nothing.
 
 | Folder | What it proves | Changes when |
 |---|---|---|
-| `acceptance/core/` | The product delivers what the user asked for. The only black-box suite | Never, unless the goal changes (`Core-Change:` footer) |
-| `tests/` (`SPEC_TESTS_DIR`) | Each spec's requirements, positive and negative. Unit or end-to-end, in the language's usual style (`SPEC_TEST_STYLE`) | A spec changes, or a swap changes the internals they touch |
+| `acceptance/core/` | The product delivers what the user asked for (black-box) | Only when the product's promise changes (`Core-Change:` footer) |
+| `acceptance/features/` | One new capability per `feature` spec (black-box) | It may become obsolete (`Acceptance-Change:` footer) |
+| `tests/` (`SPEC_TESTS_DIR`) | The details of each spec, positive and negative. Unit or end-to-end, in the language's usual style (`SPEC_TEST_STYLE`) | A spec changes, or a swap changes the internals they touch |
 | `contracts/` | Every adapter of a port behaves as the port promises | A port changes |
 
 ## Decisions

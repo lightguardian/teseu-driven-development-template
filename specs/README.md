@@ -3,6 +3,7 @@
 One file per demand: `NNNN-slug.md`, created by `/spec` from `_template.md`.
 
 - The text is written in `SPEC_LANGUAGE` (see `.harness.env`; the native language when empty). Headings, ids and Given/When/Then keywords stay in English.
+- Every spec has a `kind`: `feature` (a new capability), `fix` (a bug), `refactor` or `chore` (no new behavior). The kind decides its tests: a feature gets one black-box test in `acceptance/features/` plus language-style tests; a fix gets a regression test; a refactor or chore gets none and has no red.
 - One spec solves one real problem.
 - Requirements are numbered (`S0001-R1`) and every test cites them.
 - Criteria use Given/When/Then, including the sad paths. Sad paths become negative tests (`NEG`).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validates Conventional Commits and protects the core acceptance tests.
+# Validates Conventional Commits and protects the black-box tests.
 # Commits themselves are never held for approval: the only gate is the push.
 set -uo pipefail
 
@@ -30,13 +30,24 @@ if [ "$(env_get ENFORCE_CONVENTIONAL_COMMITS true)" = "true" ]; then
 fi
 
 if [ "$(env_get PROTECT_CORE_TESTS true)" = "true" ]; then
+  # The core test is the contract with the user: changing it needs a reason.
   changed="$(git diff --cached --name-status --diff-filter=MDR -- acceptance/core ':(exclude)acceptance/core/README.md')"
   if [ -n "$changed" ] && ! grep -Eq '^Core-Change: .+' "$msg_file"; then
     echo "commit-msg: this commit modifies, deletes or renames core acceptance tests:" >&2
     printf '%s\n' "$changed" | sed 's/^/  /' >&2
-    echo "  The core tests are the contract with the user. If the goal really changed," >&2
+    echo "  The core test is the contract with the user. If the goal really changed," >&2
     echo "  confirm it with the user and add a footer to the message:" >&2
     echo "  Core-Change: <why the contract changed>" >&2
+    exit 1
+  fi
+
+  # The black-box tests of the features may become obsolete, but never silently.
+  changed="$(git diff --cached --name-status --diff-filter=MDR -- acceptance/features ':(exclude)acceptance/features/README.md')"
+  if [ -n "$changed" ] && ! grep -Eq '^Acceptance-Change: .+' "$msg_file"; then
+    echo "commit-msg: this commit modifies, deletes or renames black-box feature tests:" >&2
+    printf '%s\n' "$changed" | sed 's/^/  /' >&2
+    echo "  These tests may become obsolete, but say why. Add a footer to the message:" >&2
+    echo "  Acceptance-Change: <why this test changed or was retired>" >&2
     exit 1
   fi
 fi

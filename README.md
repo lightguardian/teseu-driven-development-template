@@ -142,19 +142,46 @@ Exemplo ilustrativo (um sistema de campanhas de e-mail; é só um exemplo, o mé
 
 ## Os testes
 
+Há dois tipos de teste, com papéis diferentes:
+
+- **Caixa-preta:** olha o produto de fora e confere o que ele entrega. Existe só para demandas que trazem **capacidade nova**.
+- **Da própria linguagem** (unitário, end-to-end ou misto, à sua escolha): confere os detalhes por dentro, no estilo e no lugar que a linguagem costuma usar.
+
 | Pasta | O que prova | Estilo | Muda quando |
 |---|---|---|---|
-| `acceptance/core/` | O produto entrega o que o usuário pediu (o **teste core** do piloto) | **Caixa-preta**, a única | Nunca, a menos que o objetivo mude (commit com `Core-Change:`) |
-| `tests/` (`SPEC_TESTS_DIR`) | Os requisitos de cada spec | Os testes usuais da linguagem: **unitários, end-to-end ou mistos**, à sua escolha | A spec muda, ou uma troca mexe nos internos que eles tocam |
+| `acceptance/core/` | O produto entrega o que o usuário pediu (o **teste core** do piloto) | **Caixa-preta** | Só quando a promessa do produto muda (commit com `Core-Change:`) |
+| `acceptance/features/NNNN-slug/` | Uma capacidade nova, um teste por spec do tipo `feature` | **Caixa-preta** | Pode ficar obsoleto; mudar ou aposentar exige `Acceptance-Change:` |
+| `tests/` (`SPEC_TESTS_DIR`) | Os detalhes de cada spec | Os testes usuais da linguagem: **unitários, end-to-end ou mistos** (`SPEC_TEST_STYLE`) | A spec muda, ou uma troca mexe nos internos que eles tocam |
 | `contracts/` | Todo adaptador de uma porta se comporta como a porta promete | Testes da linguagem, rodados contra cada adaptador | A porta muda |
 
-Regras:
+### Que testes cada tipo de demanda pede
 
-- **Só o teste core é caixa-preta.** Ele fala com o produto só pela borda pública (linha de comando, HTTP, arquivos, um servidor de teste do serviço externo) e nunca importa o código do produto. É isso que permite trocar qualquer camada, e até a linguagem, e provar que o produto continua igual.
-- **O resto segue a linguagem e a sua escolha.** Os testes das specs ficam onde a linguagem costuma pôr testes (`SPEC_TESTS_DIR`) e usam o estilo de `SPEC_TEST_STYLE`: `unit` (padrão: o núcleo e os adaptadores, com simulações atrás das portas), `e2e` (dirige o produto inteiro) ou `mixed` (o agente escolhe por requisito: unitário para regras, end-to-end para fluxos). Os nomes levam o id da spec (`S0001_R1_...`), e é assim que o `TEST_SPEC_CMD` roda os testes de uma spec só.
-- **Testes positivos e negativos.** Positivo prova que a coisa funciona. **Negativo** prova que a coisa errada não acontece: entrada inválida é rejeitada, ação proibida é negada, operação que falha não deixa efeito colateral, nada é enviado a quem pediu para sair. Todo teste negativo leva `NEG` no nome, e o `scripts/evidence.sh` recusa um RED sem pelo menos um.
-- **Toda spec passa no teste core e nos seus.** Spec que passa nos próprios testes mas quebra o core não está pronta. O green também roda os testes das outras specs e os contratos das portas que ela tocou, para não quebrar o que já funcionava.
-- **O core é protegido.** O hook `commit-msg` recusa commit que altera ou apaga `acceptance/core/` sem o rodapé `Core-Change: <motivo>`, e o Claude Code pede confirmação antes de editar esses arquivos.
+Cada spec tem um `kind`, e é ele que decide os testes:
+
+| Tipo | O que é | Testes |
+|---|---|---|
+| `feature` | Capacidade nova (por exemplo, a cotação do euro além da do dólar) | **Um** teste caixa-preta (o caminho positivo principal e o negativo principal) **e** testes da linguagem para os detalhes, com pelo menos um `NEG` |
+| `fix` | Correção de bug | Um teste de regressão da linguagem, que falha primeiro. Caixa-preta só se o bug quebrou a promessa do core |
+| `refactor` | Mudança interna, mesmo comportamento | Nenhum teste novo e **nenhum red**: registra-se o verde de partida, faz-se a mudança, revisa-se e refatora-se |
+| `chore` | Ferramentas, documentação, dependências | Igual ao `refactor` |
+
+Não existe caixa-preta para tudo de propósito: uma refatoração ou uma correção não traz nada novo observável por fora, e testar isso de fora não faz sentido. Cada demanda tem **um ponto central** (a primeira tábua listada na spec) e, se for `feature`, **um** teste caixa-preta. Se tocar em mais de duas tábuas, é sinal para dividir.
+
+### O teste core é revisitado a cada demanda
+
+A cada demanda o agente pergunta: **o teste core ainda faz sentido?** Se o teste diz que o e-mail precisa ter a imagem da campanha e a nova demanda tira a imagem, o teste vai falhar, e isso não é um defeito da demanda: é a promessa do produto que mudou. Nesse caso a spec marca `core_change: true`, o agente mostra qual parte do teste core deixou de ser verdade, **pede o seu sim**, atualiza o teste core primeiro (a falha dele entra no RED) e o commit leva o rodapé `Core-Change: <motivo>`. O teste core nunca é editado só para fazer uma mudança passar.
+
+### Regras
+
+- **Caixa-preta quer dizer:** fala com o produto só pela borda pública (linha de comando, HTTP, arquivos, um servidor de teste do serviço externo) e nunca importa o código do produto (o `scripts/arch-check.sh` confere).
+- **Testes positivos e negativos.** Positivo prova que a coisa funciona. **Negativo** prova que a coisa errada não acontece: entrada inválida é rejeitada, ação proibida é negada, operação que falha não deixa efeito colateral, nada é enviado a quem pediu para sair. Todo teste negativo leva `NEG` no nome, e o `scripts/evidence.sh` recusa o RED de uma `feature` sem pelo menos um.
+- **Os testes da linguagem seguem a sua escolha.** Ficam onde a linguagem costuma pôr testes (`SPEC_TESTS_DIR`) e usam `SPEC_TEST_STYLE`: `unit` (padrão: o núcleo e os adaptadores, com simulações atrás das portas), `e2e` (dirige o produto inteiro) ou `mixed` (o agente escolhe por requisito). Os nomes levam o id da spec (`S0001_R1_...`), e é assim que o `TEST_SPEC_CMD` roda os testes de uma spec só.
+- **Toda spec passa no teste core e nos seus.** O green também roda os testes das outras specs e os contratos das portas que ela tocou, para não quebrar o que já funcionava.
+- **Os testes caixa-preta são protegidos, mas não congelados.** O hook `commit-msg` recusa commit que altera ou apaga `acceptance/core/` sem `Core-Change:` e `acceptance/features/` sem `Acceptance-Change:`. Um teste de feature pode ficar obsoleto com o tempo; o que não pode é sumir sem motivo registrado.
+
+### Trocar de linguagem
+
+Sem teste caixa-preta não dá para provar uma troca de linguagem. Quem prova é o conjunto `acceptance/core/` mais `acceptance/features/`, e é por isso que cada `feature` ganha o seu. O que ficou coberto **só** por testes da linguagem (correções de bug, detalhes) precisa ser portado à mão; o `/swap` lista isso antes da troca.
 
 Exemplo ilustrativo de piloto para um conversor de planilhas: **A01** (positivo) roda o comando com um arquivo de entrada e confere que o arquivo de saída tem as colunas combinadas; **A02 NEG** (negativo) passa um arquivo corrompido e confere que o comando falha com mensagem clara e **não** cria arquivo de saída. O mesmo vale para qualquer outro tipo de projeto.
 
@@ -180,7 +207,11 @@ Um programa web que faz **uma única ação**: buscar a cotação atual do dóla
 
 **5. Depois, uma spec por vez, quando a necessidade aparecer.**
 
-- "Quero ver o histórico das cotações" é uma `/spec`: nasce uma camada de dados (um novo adaptador atrás de uma porta), com testes positivos e negativos.
+- "Quero ver também a cotação do euro" é uma `/spec` do tipo `feature`: nasce **um teste caixa-preta novo** (`acceptance/features/0002-euro/`: `EUR` para `BRL` devolve o valor certo, e uma moeda desconhecida devolve erro) mais os testes da linguagem para os detalhes (arredondamento, formatação). O teste core do dólar continua passando.
+- "Quero ver o histórico das cotações" também é uma `feature`: nasce uma camada de dados (um novo adaptador atrás de uma porta).
+- "O valor aparece com casas decimais demais" é um `fix`: um teste de regressão da linguagem que falha primeiro, sem teste caixa-preta.
+- "Quero reorganizar o módulo de conversão" é um `refactor`: nenhum teste novo e nenhum red; core, features e specs continuam verdes.
+- "Não quero mais mostrar a data da cotação", que o teste core exige, é uma demanda com `core_change: true`: o agente pede o seu sim e atualiza o teste core antes.
 - "A API às vezes demora" vira uma dor (`/pain`) e depois uma troca de tábua (`/swap`): a tábua de cotações ganha um cache, com o contrato da porta rodando contra os dois adaptadores.
 - "Outras pessoas vão usar" sobe o rigor (`/harden`) e troca a página simples por uma interface de verdade.
 
@@ -208,8 +239,9 @@ src/
   app/                     entradas e ligação; o único lugar que escolhe o adaptador
 
 acceptance/
-  core/                    o teste core do piloto: os únicos testes de caixa-preta (imutáveis)
-tests/                     testes das specs, unitários ou end-to-end, no estilo da linguagem (SPEC_TESTS_DIR)
+  core/                    o teste core do piloto: caixa-preta, a promessa ao usuário
+  features/NNNN-slug/      um teste caixa-preta por spec do tipo feature
+tests/                     testes da linguagem para os detalhes das specs, unitários ou end-to-end (SPEC_TESTS_DIR)
 contracts/                 um conjunto de testes por porta, rodado contra todos os adaptadores
 specs/                     NNNN-slug.md, uma por demanda (+ _template.md)
 docs/                      architecture.md (mapa de camadas), adr/ (a partir do R3)
@@ -253,7 +285,7 @@ Trocar uma tábua (`/swap`) segue Branch by Abstraction e Parallel Change, e tam
 3. **Migrar:** a ligação em `app/` passa a usar o novo (com caminho de volta, se houver dados).
 4. **Contrair:** apaga-se o velho. Pular este passo deixa dois sistemas vivos, a falha clássica.
 
-Trocar a linguagem do produto inteiro é o caso extremo da mesma ideia: `acceptance/` não muda, a implementação nova nasce numa pasta irmã, e a suíte de aceitação é a definição de pronto.
+Trocar a linguagem do produto inteiro é o caso extremo da mesma ideia: `acceptance/` (core e features) não muda, a implementação nova nasce numa pasta irmã, e todos os testes caixa-preta são a definição de pronto. O que ficou coberto só por testes da linguagem precisa ser portado à mão, e o `/swap` lista isso antes.
 
 ## Priorizar várias demandas (opcional)
 
@@ -330,7 +362,7 @@ Tudo o que você pode escolher fica no `.harness.env`. Os agentes só mudam essa
 |---|---|---|
 | `NATIVE_LANGUAGE` | `pt-BR` (padrão), `en`, `es`... | Idioma das entrevistas, do `PILOT.md`, `PLANKS.md`, `BACKLOG.md`, `GLOSSARY.md`, das issues e dos PRs |
 | `SPEC_LANGUAGE` | vazio (padrão), `en`, `pt-BR`... | Idioma das specs. Vazio significa o mesmo de `NATIVE_LANGUAGE`. Cabeçalhos, ids, Given/When/Then e nomes de testes ficam em inglês |
-| `SPEC_TEST_STYLE` | `unit` (padrão), `e2e`, `mixed` | Estilo dos testes das specs. Só o teste core do piloto é caixa-preta |
+| `SPEC_TEST_STYLE` | `unit` (padrão), `e2e`, `mixed` | Estilo dos testes da linguagem das specs. Os caixa-preta são o core e os das features |
 | `SPEC_TESTS_DIR` | `tests` (padrão) ou o lugar usual da sua linguagem | Onde ficam os testes das specs |
 | `REVIEW_MODE` | `auto` (padrão), `external`, `off` | Quem revisa entre o green e o refactor: o `reviewer` embutido, o **seu** revisor (o agente espera o veredito e o registra) ou ninguém |
 | `PRIORITIZATION` | `none` (padrão), `moscow`, `rice`, `ice` | Como o `BACKLOG.md` é ordenado |
@@ -357,7 +389,7 @@ A fonte única é o `AGENTS.md`. Cada ferramenta ganha uma casca fina que só ap
 
 Para criar um comando novo: escreva `.agents/workflows/<nome>.md` e rode `scripts/sync-shells.sh`.
 
-Aviso honesto: os scripts foram testados num repositório descartável (117 verificações, incluindo os hooks, a ordem do ciclo, os modos de revisão, os estilos de teste, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
+Aviso honesto: os scripts foram testados num repositório descartável (161 verificações, incluindo os hooks, a ordem do ciclo, os tipos de demanda, os modos de revisão, o changelog e o backlog). As cascas de cada ferramenta foram geradas a partir da documentação e de fontes secundárias, e **ainda não foram testadas dentro de cada ferramenta**.
 
 ## Scripts
 
@@ -376,7 +408,7 @@ Aviso honesto: os scripts foram testados num repositório descartável (117 veri
 - **Valor no dia 0.** Algo é usado de verdade logo, e o feedback real orienta o que vale documentar.
 - **Tokens gastos no que se usa.** A documentação pesada só aparece para o que já provou ser necessário.
 - **Troca com o barco na água.** O sistema funciona em todos os passos. Se a sessão acabar no meio de uma troca, nada fica quebrado.
-- **O teste core sobrevive a tudo.** Refatoração, banco novo, framework novo, linguagem nova e até a IA que escreveu o código. Os contratos protegem cada troca de tábua.
+- **Os testes caixa-preta sobrevivem a tudo.** Refatoração, banco novo, framework novo, linguagem nova e até a IA que escreveu o código. Os contratos protegem cada troca de tábua.
 - **Disciplina que se verifica.** O red documentado, os testes negativos, a ordem do ciclo e o changelog em dia são checados por script, não só pedidos por texto.
 - **Histórico de graça.** Um commit por fase gera um changelog que conta o que foi feito, sem escrever nada à mão.
 - **Specs mais honestas.** Escritas depois do uso, falam de dores reais, não de suposições.
@@ -390,10 +422,11 @@ Aviso honesto: os scripts foram testados num repositório descartável (117 veri
 - **Tensão com o YAGNI.** "Tudo pode mudar" pode virar over-engineering, com interfaces e camadas para tudo. É preciso medir o quanto de costura vale a pena.
 - **O provisório vira definitivo.** Um protótipo em uso tende a ficar. Sem um gatilho claro de troca, as tábuas simples viram dívida permanente.
 - **Porta errada custa caro.** A implementação é fácil de trocar, mas a interface entre as partes é decisão de mão única.
-- **O ciclo completo cansa.** Red, green, review e refactor com evidência a cada demanda é mais cerimônia do que um simples "pede e vê". Para ajustes minúsculos pode parecer exagero.
+- **O ciclo completo cansa.** Red, green, review e refactor com evidência, e dois testes por `feature` (um caixa-preta e um da linguagem), é mais cerimônia do que um simples "pede e vê". Para ajustes minúsculos existem os tipos `fix`, `refactor` e `chore`, que pedem menos, mas ainda pode parecer exagero.
 - **Dois ritmos convivendo.** O piloto vibe-codado e as partes novas em SDD podem divergir. Exige disciplina: piloto congelado, correções críticas só com teste.
 - **Falsa segurança com poucos testes.** Um piloto com um cenário só prova pouco. O teste core, de caixa-preta, cobre apenas o que foi pensado (desempenho, concorrência e casos de borda escapam) e é mais lento em fluxos assíncronos. Um teste `NEG` mal escrito, que não pode falhar, também engana.
-- **Testes unitários das specs acompanham os internos.** Só o teste core e os contratos sobrevivem a qualquer troca. Os unitários podem precisar ser reescritos quando uma tábua muda por dentro; é o preço de ter testes rápidos e baratos. Quem prefere testes que quase nunca quebram na troca pode escolher `SPEC_TEST_STYLE=e2e`.
+- **Os testes da linguagem acompanham os internos.** Só os testes caixa-preta (core e features) e os contratos sobrevivem a qualquer troca; os da linguagem podem precisar de reescrita quando uma tábua muda por dentro. É o preço de ter testes rápidos e baratos. Quem prefere testes que quase nunca quebram na troca pode escolher `SPEC_TEST_STYLE=e2e`.
+- **A suíte caixa-preta cresce com cada feature.** Fica mais lenta e algumas ficam obsoletas. Mantenha um teste por feature, só com o caminho principal (o resto é dos testes da linguagem), e aposente os obsoletos com `Acceptance-Change:`.
 - **Commit sem pergunta, push com pergunta.** Como o agente commita sozinho, o histórico local pode ter commits ruins até você revisar; a trava é o push (e o `reviewer`). Quem quiser revisar cada commit precisa fazê-lo por conta própria.
 - **"Produção entre aspas" tem risco real.** Usar o piloto com dados de terceiros, dinheiro ou mensagens em massa sem autenticação, limites e backup pode causar dano de verdade. Nesses casos o rigor precisa subir antes do primeiro uso.
 - **As travas são locais.** Os hooks do git e o `arch-check` (que lê linhas, não entende código) são grades de proteção, não segurança: `git commit --no-verify` no seu terminal passa por cima. A proteção real é a branch protegida no GitHub e o CI.
