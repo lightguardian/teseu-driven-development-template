@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Validates Conventional Commits and protects the core acceptance tests.
+# Commits themselves are never held for approval: the only gate is the push.
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+# shellcheck source=../scripts/lib/env.sh
+. "$root/scripts/lib/env.sh"
+
+msg_file="$1"
+gitdir="$(git rev-parse --git-dir)"
+
+# Do not interrupt merges, rebases, cherry-picks and reverts.
+for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
+  [ -e "$gitdir/$f" ] && exit 0
+done
+
+subject="$(grep -vE '^[[:space:]]*(#|$)' "$msg_file" | head -n1)"
+
+if [ "$(env_get ENFORCE_CONVENTIONAL_COMMITS true)" = "true" ]; then
+  re='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([A-Za-z0-9._/-]+\))?!?: .+'
+  if ! printf '%s' "$subject" | grep -Eq "$re"; then
+    echo "commit-msg: the subject must follow Conventional Commits 1.0.0, in English." >&2
+    echo "  format:  type(scope): description" >&2
+    echo "  types:   feat fix docs style refactor perf test build ci chore revert" >&2
+    echo "  example: feat(report): export the monthly summary" >&2
+    echo "  got:     $subject" >&2
+    exit 1
+  fi
+fi
+
+if [ "$(env_get PROTECT_CORE_TESTS true)" = "true" ]; then
+  changed="$(git diff --cached --name-status --diff-filter=MDR -- acceptance/core ':(exclude)acceptance/core/README.md')"
+  if [ -n "$changed" ] && ! grep -Eq '^Core-Change: .+' "$msg_file"; then
+    echo "commit-msg: this commit modifies, deletes or renames core acceptance tests:" >&2
+    printf '%s\n' "$changed" | sed 's/^/  /' >&2
+    echo "  The core tests are the contract with the user. If the goal really changed," >&2
+    echo "  confirm it with the user and add a footer to the message:" >&2
+    echo "  Core-Change: <why the contract changed>" >&2
+    exit 1
+  fi
+fi
+
+exit 0

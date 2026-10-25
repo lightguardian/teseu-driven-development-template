@@ -1,0 +1,30 @@
+# Dormant template. /harden (R2) copies it to .github/workflows/ci.yml and fills in the toolchain.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the changelog check reads the whole history
+
+      # TODO(/harden): install the project's toolchain here (setup-python, setup-node, ...)
+      # and whatever the product needs to run (for example a test sink service).
+
+      - name: Core, spec and contract tests
+        run: scripts/test.sh all
+
+      - name: Architecture rules
+        run: scripts/arch-check.sh
+
+      - name: Changelog is up to date
+        run: scripts/changelog.sh --check

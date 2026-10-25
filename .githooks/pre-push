@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# The push is the gate. Before it goes out: the core acceptance tests pass (when enabled),
+# the changelog is up to date (when enabled) and, when enabled, a review window shows the
+# commits about to be pushed.
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+# shellcheck source=../scripts/lib/env.sh
+. "$root/scripts/lib/env.sh"
+
+remote="$1"
+url="${2:-}"
+
+# stdin carries the refs being pushed; keep it for the loop below
+
+if [ "$(env_get RUN_CORE_BEFORE_PUSH false)" = "true" ]; then
+  if ! "$root/scripts/test.sh" core </dev/null; then
+    echo "pre-push: the core acceptance tests are failing. Push blocked." >&2
+    exit 1
+  fi
+fi
+
+if [ "$(env_get ENFORCE_CHANGELOG true)" = "true" ]; then
+  if ! "$root/scripts/changelog.sh" --check </dev/null; then
+    echo "pre-push: update the changelog first. Push blocked." >&2
+    exit 1
+  fi
+fi
+
+[ "$(env_get REVIEW_BEFORE_PUSH false)" = "true" ] || exit 0
+
+zero="0000000000000000000000000000000000000000"
+gitdir="$(git rev-parse --git-dir)"
+mkdir -p "$gitdir/ai-review"
+out="$gitdir/ai-review/push-$(date +%Y%m%d-%H%M%S).diff"
+
+{
+  echo "# REVIEW BEFORE PUSH to $remote ($url) - close this tab/window, then answer the prompt."
+  echo
+} > "$out"
+
+count=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "$zero" ]; then
+    echo "# deleting $remote_ref" >> "$out"
+    count=$((count + 1))
+    continue
+  fi
+  if [ "$remote_sha" = "$zero" ]; then
+    range="$local_sha --not --remotes=$remote"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+  {
+    echo "# $local_ref -> $remote_ref"
+    # shellcheck disable=SC2086
+    git log --stat --patch --format='commit %h %s (%an)' $range
+    echo
+  } >> "$out"
+  count=$((count + 1))
+done
+
+[ "$count" -gt 0 ] || exit 0
+
+exec "$root/scripts/review-window.sh" "$out" "Approve this push?"

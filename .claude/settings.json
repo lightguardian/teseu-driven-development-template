@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git push:*)",
+      "Edit(./acceptance/core/**)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.production)",
+      "Bash(git commit --no-verify:*)",
+      "Bash(git commit -n:*)",
+      "Bash(git push --no-verify:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Edit(./.githooks/**)",
+      "Edit(./scripts/review-window.sh)",
+      "Edit(./scripts/lib/**)"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+# secrets and local config
+.env
+.env.*
+!.env.example
+
+# local data
+*.db
+*.sqlite
+*.sqlite3
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# dependencies and build output (add what your stack needs)
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+target/
+coverage/

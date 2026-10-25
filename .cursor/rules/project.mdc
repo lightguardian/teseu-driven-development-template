@@ -1,0 +1,5 @@
+---
+description: Project rules (the canonical file is AGENTS.md)
+alwaysApply: true
+---
+Read and follow `AGENTS.md` in the repository root at the start of every session.
