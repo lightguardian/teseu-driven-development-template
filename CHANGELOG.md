@@ -6,10 +6,12 @@ History of what was done, generated from Conventional Commits by `scripts/change
 
 ### Breaking changes
 
+- **tests:** Rename the NEG marker to NEGATIVE (4e2e4cd, 2026-10-25)
 - **tests:** Only the core test is black-box; spec tests follow the language (b2a7d65, 2026-10-25)
 
 ### Features
 
+- **tests:** Rename the NEG marker to NEGATIVE (4e2e4cd, 2026-10-25)
 - **tests:** Make every test optional and keep the checklist for conference only (604297b, 2026-10-25)
 - **tests:** Verify in two stages and generate a checklist per spec (fa3ced9, 2026-10-25)
 - **spec:** Add demand kinds and one black-box test per feature (f105c1b, 2026-10-25)
